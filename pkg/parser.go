@@ -1,0 +1,526 @@
+package neu
+
+import (
+	"fmt"
+	"slices"
+)
+
+// TreeNode will be used for all AST nodes:
+// Binary: both children set
+// Unary: only right child set
+// Group: only left child set
+// Literal: no child set
+type TreeNode struct {
+	left  *TreeNode
+	oper  Token
+	right *TreeNode
+}
+
+type CommandType int
+
+const (
+	prog_cmd CommandType = iota
+	print_cmd
+	read_cmd
+	vardef_cmd
+	assign_cmd
+	if_cmd
+	for_cmd
+	while_cmd
+	block
+	expr_cmd
+)
+
+func (c CommandType) String() string {
+	switch c {
+	case prog_cmd:
+		return "<PROG>"
+	case print_cmd:
+		return "<PRINT>"
+	case read_cmd:
+		return "<READ>"
+	case vardef_cmd:
+		return "<V-DEF>"
+	case assign_cmd:
+		return "<ASSIGN>"
+	case if_cmd:
+		return "<IF>"
+	case for_cmd:
+		return "<FOR>"
+	case while_cmd:
+		return "<WHILE>"
+	case block:
+		return "<BLOCK>"
+	case expr_cmd:
+		return "<EXPR>"
+	default:
+		return fmt.Sprintf("%d", c)
+	}
+}
+
+type Command struct {
+	stmt_type CommandType
+	head      *TreeNode
+	body      []*Command
+	id        string
+	vtype     TokenType
+}
+
+type ParseError struct {
+	line int
+	pos  int
+	msg  string
+}
+
+func (e *ParseError) Error() string {
+	return fmt.Sprintf("[ERROR] Parsing Line %d Column %d: %s", e.line, e.pos+1, e.msg)
+}
+
+func expect_nl(tokens []Token, current *int) error {
+
+	if !(match_token(tokens, current, Nl)) {
+		re := &ParseError{tokens[*current].Line, tokens[*current].Start, "New line expected"}
+		sync_to_next_cmd(tokens, current)
+		return re
+	}
+	return nil
+}
+
+func match_token(tokens []Token, current *int, t_match ...TokenType) bool {
+	if *current >= len(tokens) {
+		return false
+	}
+	if slices.Contains(t_match, tokens[*current].Token_type) {
+		if !(*current+1 >= len(tokens)) {
+			*current++
+		}
+		return true
+	} else {
+		return false
+	}
+}
+
+func match_token_seq(tokens []Token, current *int, seq []TokenType) bool {
+	reset := *current
+	succ := true
+	for _, typ := range seq {
+		if !match_token(tokens, current, typ) {
+			succ = false
+			*current = reset
+			break
+		}
+	}
+	return succ
+}
+
+func parse_primary(tokens []Token, current *int) (*TreeNode, error) {
+	if match_token(tokens, current, Lit_false, Lit_true, Lit_char, Lit_num, Lit_str, Nul, Identifier) {
+		literal := tokens[*current-1]
+		return &TreeNode{oper: literal}, nil
+	}
+	if match_token(tokens, current, L_paren) {
+		paren := tokens[*current-1]
+		expr, err := parse_expression(tokens, current)
+		if err != nil {
+			return nil, err
+		}
+		if match_token(tokens, current, R_paren) {
+			return &TreeNode{left: expr, oper: paren}, nil
+		} else {
+			return nil, &ParseError{paren.Line, paren.Start, "Unclosed parenthesis"}
+		}
+	}
+
+	// node := &TreeNode{oper: Token{Nul, "SEMMI", nil, tokens[*current].Line, tokens[*current].Start}}
+	*current++
+	// fmt.Println(tokens[*current])
+	// return node, nil
+	return nil, &ParseError{tokens[*current].Line, tokens[*current].Start, "Primary token missing"}
+}
+
+func parse_unary(tokens []Token, current *int) (*TreeNode, error) {
+	if match_token(tokens, current, Not, Minus) {
+		operator := tokens[*current-1]
+		right, err := parse_unary(tokens, current)
+		return &TreeNode{oper: operator, right: right}, err
+	}
+	return parse_primary(tokens, current)
+}
+
+func parse_factor(tokens []Token, current *int) (*TreeNode, error) {
+	expr, err := parse_unary(tokens, current)
+	for match_token(tokens, current, Star, Slash, Sl_slash, Percent) {
+		operator := tokens[*current-1]
+		right, e := parse_unary(tokens, current)
+		expr = &TreeNode{left: expr, right: right, oper: operator}
+		if e != nil {
+			err = e
+		}
+	}
+	return expr, err
+}
+
+func parse_term(tokens []Token, current *int) (*TreeNode, error) {
+	expr, err := parse_factor(tokens, current)
+	for match_token(tokens, current, Plus, Minus) {
+		operator := tokens[*current-1]
+		right, e := parse_factor(tokens, current)
+		expr = &TreeNode{left: expr, right: right, oper: operator}
+		if e != nil {
+			err = e
+		}
+	}
+	return expr, err
+}
+
+func parse_comparison(tokens []Token, current *int) (*TreeNode, error) {
+	expr, err := parse_term(tokens, current)
+	for match_token(tokens, current, Greater, G_equal, Less, L_equal) {
+		operator := tokens[*current-1]
+		right, e := parse_term(tokens, current)
+		expr = &TreeNode{left: expr, right: right, oper: operator}
+		if e != nil {
+			err = e
+		}
+	}
+	return expr, err
+}
+
+func parse_equality(tokens []Token, current *int) (*TreeNode, error) {
+	expr, err := parse_comparison(tokens, current)
+	for match_token(tokens, current, E_equal, N_equal) {
+		operator := tokens[*current-1]
+		right, e := parse_comparison(tokens, current)
+		expr = &TreeNode{left: expr, right: right, oper: operator}
+		if e != nil {
+			err = e
+		}
+	}
+	return expr, err
+}
+
+func parse_expression(tokens []Token, current *int) (*TreeNode, error) {
+	expr, err := parse_equality(tokens, current)
+	for match_token(tokens, current, And, Or) {
+		operator := tokens[*current-1]
+		right, e := parse_equality(tokens, current)
+		expr = &TreeNode{left: expr, right: right, oper: operator}
+		if e != nil {
+			err = e
+		}
+	}
+	return expr, err
+}
+
+func parse_block(tokens []Token, current *int, closers ...TokenType) (*Command, error) {
+	var body []*Command
+	for *current < len(tokens) &&
+		!(slices.Contains(closers, tokens[*current].Token_type)) {
+		cmd, err := parse_command(tokens, current)
+		if err != nil {
+			return nil, err
+		}
+		body = append(body, cmd)
+	}
+	return &Command{block, nil, body, "", Nul}, nil
+}
+
+func parse_if(tokens []Token, current *int) (*Command, error) {
+	// find Ed_if
+	end_if := *current
+	for ; end_if < len(tokens) && !(tokens[end_if].Token_type == Ed_if); end_if++ {
+	}
+	if end_if == len(tokens) {
+		return nil, &ParseError{tokens[end_if-1].Line, tokens[end_if-1].Start, "HA tag not closed"}
+	}
+
+	head, err := parse_expression(tokens, current)
+	if err != nil {
+		return nil, err
+	}
+	err = expect_nl(tokens, current)
+	if err != nil {
+		return nil, err
+	}
+
+	true_cmd, err := parse_block(tokens, current, Ed_if, St_elif, St_else)
+	if err != nil {
+		return nil, err
+	}
+
+	var false_cmd *Command
+	if tokens[*current].Token_type != Ed_if {
+		//check if elif: -> parse as if
+		//      if else: -> just parse body
+		if match_token(tokens, current, St_elif) {
+			cmd, err := parse_if(tokens, current)
+			if err != nil {
+				return nil, err
+			}
+			false_cmd = cmd
+		} else if match_token(tokens, current, St_else) {
+			err = expect_nl(tokens, current)
+			if err != nil {
+				return nil, err
+			}
+			cmd, err := parse_block(tokens, current, Ed_if)
+			if err != nil {
+				return nil, err
+			}
+			false_cmd = cmd
+			match_token(tokens, current, Ed_if)
+			err = expect_nl(tokens, current)
+			if err != nil {
+				return nil, err
+			}
+
+		} else {
+			panic("Something went wrong while parsing IF")
+		}
+	} else {
+		match_token(tokens, current, Ed_if)
+		err = expect_nl(tokens, current)
+		if err != nil {
+			return nil, err
+		}
+	}
+	body := []*Command{true_cmd, false_cmd}
+
+	return &Command{if_cmd, head, body, "", Nul}, nil
+}
+
+func parse_for(tokens []Token, current *int) (*Command, error) {
+	end_for := *current
+	for ; end_for < len(tokens) && !(tokens[end_for].Token_type == Ed_for); end_for++ {
+	}
+	if end_for == len(tokens) {
+		return nil, &ParseError{tokens[end_for-1].Line, tokens[end_for-1].Start, "ISM tag not closed"}
+	}
+	head, err := parse_expression(tokens, current)
+	var idx_def *Command
+	if match_token(tokens, current, Identifier) {
+		// index variable
+		// define new num variable
+		// set value to zero
+		idx_par := Token{Lit_num, "<IDX-PAR>", 0, tokens[*current].Line, tokens[*current].Start + 1}
+		idx_literal := &TreeNode{oper: idx_par}
+		idx_def = &Command{vardef_cmd, idx_literal, nil, tokens[*current-1].Lexeme, Type_num}
+	}
+	err = expect_nl(tokens, current)
+	if err != nil {
+		return nil, err
+	}
+	for_block, err := parse_block(tokens, current, Ed_for)
+	if err != nil {
+		return nil, err
+	}
+	match_token(tokens, current, Ed_for)
+	err = expect_nl(tokens, current)
+	if err != nil {
+		return nil, err
+	}
+	var body []*Command
+	body = append(body, idx_def)
+	body = append(body, for_block)
+
+	return &Command{for_cmd, head, body, "", Nul}, nil
+}
+
+func parse_while(tokens []Token, current *int) (*Command, error) {
+	end_while := *current
+	for ; end_while < len(tokens) && !(tokens[end_while].Token_type == Ed_while); end_while++ {
+	}
+	if end_while == len(tokens) {
+		return nil, &ParseError{tokens[end_while-1].Line, tokens[end_while-1].Start, "CIKLUS tag not closed"}
+	}
+	head, err := parse_expression(tokens, current)
+	var idx_def *Command
+	if match_token(tokens, current, Identifier) {
+		// index variable
+		// define new num variable
+		// set value to zero
+		idx_par := Token{Lit_num, "<IDX-PAR>", 0, tokens[*current].Line, tokens[*current].Start + 1}
+		idx_literal := &TreeNode{oper: idx_par}
+		idx_def = &Command{vardef_cmd, idx_literal, nil, tokens[*current-1].Lexeme, Type_num}
+	}
+	err = expect_nl(tokens, current)
+	if err != nil {
+		return nil, err
+	}
+	for_block, err := parse_block(tokens, current, Ed_while)
+	if err != nil {
+		return nil, err
+	}
+	match_token(tokens, current, Ed_while)
+	err = expect_nl(tokens, current)
+	if err != nil {
+		return nil, err
+	}
+	var body []*Command
+	body = append(body, idx_def)
+	body = append(body, for_block)
+
+	return &Command{while_cmd, head, body, "", Nul}, nil
+}
+
+func parse_command(tokens []Token, current *int) (*Command, error) {
+	//printing
+	if match_token(tokens, current, C_print) {
+		head, err := parse_expression(tokens, current)
+		if err != nil {
+			return nil, err
+		}
+		err = expect_nl(tokens, current)
+		if err != nil {
+			return nil, err
+		}
+		return &Command{print_cmd, head, nil, "", Nul}, nil
+	}
+	//reading
+	if match_token(tokens, current, C_read) {
+		head, err := parse_primary(tokens, current)
+		if err != nil {
+			return nil, err
+		}
+		err = expect_nl(tokens, current)
+		if err != nil {
+			return nil, err
+		}
+		return &Command{read_cmd, head, nil, "", Nul}, nil
+	}
+	//declaration
+	if match_token(tokens, current, Type_bool, Type_char, Type_num, Type_str) {
+		vtype := tokens[*current-1].Token_type
+		if match_token(tokens, current, Identifier) {
+			id := tokens[*current-1].Lexeme
+			//check if setter expression is present -> add it to head
+			var head *TreeNode
+			var err error
+			if match_token(tokens, current, Equal) {
+				head, err = parse_expression(tokens, current)
+			}
+			if err != nil {
+				return nil, err
+			}
+			err = expect_nl(tokens, current)
+			if err != nil {
+				return nil, err
+			}
+			return &Command{vardef_cmd, head, nil, id, vtype}, nil
+
+		} else {
+			err := &ParseError{tokens[*current].Line, tokens[*current].Start, "Identifier expected"}
+			sync_to_next_cmd(tokens, current)
+			return nil, err
+		}
+	}
+	//assignment
+	if match_token_seq(tokens, current, []TokenType{Identifier, Equal}) {
+		id := tokens[*current-2].Lexeme
+		head, err := parse_expression(tokens, current)
+		if err != nil {
+			return nil, err
+		}
+		err = expect_nl(tokens, current)
+		if err != nil {
+			return nil, err
+		}
+		return &Command{assign_cmd, head, nil, id, Nul}, nil
+	}
+	//if
+	if match_token(tokens, current, St_if) {
+		cmd, err := parse_if(tokens, current)
+		if err != nil {
+			return nil, err
+		}
+		return cmd, nil
+	}
+	//for
+	if match_token(tokens, current, St_for) {
+		cmd, err := parse_for(tokens, current)
+		if err != nil {
+			return nil, err
+		}
+		return cmd, nil
+	}
+	//while
+	if match_token(tokens, current, St_while) {
+		cmd, err := parse_while(tokens, current)
+		if err != nil {
+			return nil, err
+		}
+		return cmd, nil
+	}
+
+	//fallback -> naked expression
+	{
+		head, err := parse_expression(tokens, current)
+		if err != nil {
+			return nil, err
+		}
+		err = expect_nl(tokens, current)
+		if err != nil {
+			return nil, err
+		}
+		return &Command{expr_cmd, head, nil, "", Nul}, nil
+	}
+}
+
+func sync_to_next_cmd(tokens []Token, current *int) {
+	for ; !match_token(tokens, current, Nl); *current++ {
+		// fmt.Println("syncing", tokens[*current])
+		if *current >= len(tokens) {
+			break
+		}
+	}
+	*current--
+}
+
+func Parser(tokens []Token) (*Command, []error) {
+	var err []error
+	//find main PROG tags
+	start, end := -1, -1
+	for i := 0; tokens[i].Token_type != Eof; i++ {
+		if tokens[i].Token_type == St_main {
+			start = i + 1
+		}
+		if tokens[i].Token_type == Ed_main {
+			end = i
+		}
+	}
+	if start < 0 {
+		err = append(err, &ParseError{0, 0, "No PROG tag found"})
+		start = 0
+	}
+	if end < 0 {
+		etok := len(tokens) - 2
+		etok = max(0, etok)
+		err = append(err, &ParseError{tokens[etok].Line, tokens[etok].Start, "PROG tag not closed"})
+		end = len(tokens)
+	}
+
+	main_tokens := tokens[start:end]
+	current := 0
+	var head *TreeNode
+
+	if !match_token(main_tokens, &current, Identifier) {
+		err = append(err, &ParseError{main_tokens[current].Line, main_tokens[current].Start, "No PROG indentifier"})
+	} else {
+		head = &TreeNode{oper: main_tokens[current-1]}
+	}
+
+	if head != nil && !match_token(main_tokens, &current, Nl) {
+		err = append(err, &ParseError{main_tokens[current].Line, main_tokens[current].Start, "New line expected"})
+	}
+
+	var body []*Command
+	for current != len(main_tokens)-1 {
+		cmd, e := parse_command(main_tokens, &current)
+		if e != nil {
+			err = append(err, e)
+			continue
+		}
+		body = append(body, cmd)
+	}
+	return &Command{prog_cmd, head, body, "", Nul}, err
+}
