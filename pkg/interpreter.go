@@ -74,6 +74,8 @@ func unwrap_type(left, right any) (ltype, rtype string) {
 		ltype = "int"
 	case float64:
 		ltype = "float"
+	default:
+		ltype = "nul"
 	}
 	switch right.(type) {
 	case bool:
@@ -86,6 +88,8 @@ func unwrap_type(left, right any) (ltype, rtype string) {
 		rtype = "int"
 	case float64:
 		rtype = "float"
+	default:
+		rtype = "nul"
 	}
 	return
 }
@@ -124,6 +128,19 @@ func print_error(line_num, pos int, message string) {
 	had_error = true
 }
 
+func got_nul(ltype, rtype string, line, pos int) bool {
+	nul := false
+	if ltype == "nul" {
+		print_error(line, pos, "Left value in binary operator is SEMMI")
+		nul = true
+	}
+	if rtype == "nul" {
+		print_error(line, pos, "Right value in binary operator is SEMMI")
+		nul = true
+	}
+	return nul
+}
+
 // This is fucking stupid
 // I tried to refactor this, but since I can't create generic function literals to pass as arguments
 // and I can't create working sum types this "any" shenanigans and this ugly ass 300 line long function must stay
@@ -134,12 +151,18 @@ func eval_binary(lval, rval any, oper Token) any {
 	ltype, rtype := unwrap_type(lval, rval)
 	switch oper.Token_type {
 	case And:
+		if got_nul(ltype, rtype, oper.Line, oper.Start) {
+			return nil
+		}
 		if ltype != "bool" || rtype != "bool" {
 			print_error(oper.Line, oper.Start, "Boolean expected")
 			return nil
 		}
 		return lval.(bool) && rval.(bool)
 	case Or:
+		if got_nul(ltype, rtype, oper.Line, oper.Start) {
+			return nil
+		}
 		if ltype != "bool" || rtype != "bool" {
 			print_error(oper.Line, oper.Start, "Boolean expected")
 			return nil
@@ -158,6 +181,9 @@ func eval_binary(lval, rval any, oper Token) any {
 		}
 		return lval != rval
 	case Greater:
+		if got_nul(ltype, rtype, oper.Line, oper.Start) {
+			return nil
+		}
 		unsupp := []string{"bool", "str"}
 		if slices.Contains(unsupp, ltype) || slices.Contains(unsupp, rtype) {
 			print_error(oper.Line, oper.Start, "This operator does not support booleans or strings")
@@ -186,6 +212,9 @@ func eval_binary(lval, rval any, oper Token) any {
 		print_error(oper.Line, oper.Start, "Something went wrong in type checking")
 		return nil
 	case G_equal:
+		if got_nul(ltype, rtype, oper.Line, oper.Start) {
+			return nil
+		}
 		unsupp := []string{"bool", "str"}
 		if slices.Contains(unsupp, ltype) || slices.Contains(unsupp, rtype) {
 			print_error(oper.Line, oper.Start, "This operator does not support booleans or strings")
@@ -214,6 +243,9 @@ func eval_binary(lval, rval any, oper Token) any {
 		print_error(oper.Line, oper.Start, "Something went wrong in type checking")
 		return nil
 	case Less:
+		if got_nul(ltype, rtype, oper.Line, oper.Start) {
+			return nil
+		}
 		unsupp := []string{"bool", "str"}
 		if slices.Contains(unsupp, ltype) || slices.Contains(unsupp, rtype) {
 			print_error(oper.Line, oper.Start, "This operator does not support booleans or strings")
@@ -242,6 +274,9 @@ func eval_binary(lval, rval any, oper Token) any {
 		print_error(oper.Line, oper.Start, "Something went wrong in type checking")
 		return nil
 	case L_equal:
+		if got_nul(ltype, rtype, oper.Line, oper.Start) {
+			return nil
+		}
 		unsupp := []string{"bool", "str"}
 		if slices.Contains(unsupp, ltype) || slices.Contains(unsupp, rtype) {
 			print_error(oper.Line, oper.Start, "This operator does not support booleans or strings")
@@ -270,6 +305,9 @@ func eval_binary(lval, rval any, oper Token) any {
 		print_error(oper.Line, oper.Start, "Something went wrong in type checking")
 		return nil
 	case Plus:
+		if got_nul(ltype, rtype, oper.Line, oper.Start) {
+			return nil
+		}
 		unsupp := []string{"bool", "str", "char"}
 		if slices.Contains(unsupp, ltype) || slices.Contains(unsupp, rtype) {
 			print_error(oper.Line, oper.Start, "This operator does not support booleans, strings or characters")
@@ -295,6 +333,9 @@ func eval_binary(lval, rval any, oper Token) any {
 		print_error(oper.Line, oper.Start, "Something went wrong in type checking")
 		return nil
 	case Minus:
+		if got_nul(ltype, rtype, oper.Line, oper.Start) {
+			return nil
+		}
 		unsupp := []string{"bool", "str", "char"}
 		if slices.Contains(unsupp, ltype) || slices.Contains(unsupp, rtype) {
 			print_error(oper.Line, oper.Start, "This operator does not support booleans, strings or characters")
@@ -320,6 +361,9 @@ func eval_binary(lval, rval any, oper Token) any {
 		print_error(oper.Line, oper.Start, "Something went wrong in type checking")
 		return nil
 	case Star:
+		if got_nul(ltype, rtype, oper.Line, oper.Start) {
+			return nil
+		}
 		unsupp := []string{"bool", "str", "char"}
 		if slices.Contains(unsupp, ltype) || slices.Contains(unsupp, rtype) {
 			print_error(oper.Line, oper.Start, "This operator does not support booleans, strings or characters")
@@ -345,6 +389,9 @@ func eval_binary(lval, rval any, oper Token) any {
 		print_error(oper.Line, oper.Start, "Something went wrong in type checking")
 		return nil
 	case Slash:
+		if got_nul(ltype, rtype, oper.Line, oper.Start) {
+			return nil
+		}
 		unsupp := []string{"bool", "str", "char"}
 		if slices.Contains(unsupp, ltype) || slices.Contains(unsupp, rtype) {
 			print_error(oper.Line, oper.Start, "This operator does not support booleans, strings or characters")
@@ -370,6 +417,9 @@ func eval_binary(lval, rval any, oper Token) any {
 		print_error(oper.Line, oper.Start, "Something went wrong in type checking")
 		return nil
 	case Sl_slash:
+		if got_nul(ltype, rtype, oper.Line, oper.Start) {
+			return nil
+		}
 		unsupp := []string{"bool", "str", "char"}
 		if slices.Contains(unsupp, ltype) || slices.Contains(unsupp, rtype) {
 			print_error(oper.Line, oper.Start, "This operator does not support booleans, strings or characters")
@@ -395,6 +445,9 @@ func eval_binary(lval, rval any, oper Token) any {
 		print_error(oper.Line, oper.Start, "Something went wrong in type checking")
 		return nil
 	case Percent:
+		if got_nul(ltype, rtype, oper.Line, oper.Start) {
+			return nil
+		}
 		unsupp := []string{"bool", "str", "char"}
 		if slices.Contains(unsupp, ltype) || slices.Contains(unsupp, rtype) {
 			print_error(oper.Line, oper.Start, "This operator does not support booleans, strings or characters")
@@ -421,7 +474,7 @@ func eval_binary(lval, rval any, oper Token) any {
 			return lval.(int) % rval.(int)
 		}
 		if ltype == "float" {
-			print_error(oper.Line, oper.Start, "Right hanf value must be integer")
+			print_error(oper.Line, oper.Start, "Right hand value must be integer")
 			return nil
 		}
 		print_error(oper.Line, oper.Start, "Something went wrong in type checking")
