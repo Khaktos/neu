@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -10,26 +11,29 @@ import (
 )
 
 func main() {
+
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage of neu:\n\tneu <options> <neu program>\nOptions:\n")
+		flag.PrintDefaults()
+	}
+	debug_flag := flag.Bool("d", false, "Debug mode")
+
 	had_error := false
-	debug_mode := false
-	args := os.Args[1:]
+	flag.Parse()
+	args := flag.Args()
 	if len(args) == 0 {
 		fmt.Println("Please provide a .neu file as input")
 		os.Exit(64)
 	}
 	var file *os.File
 	var err error
+
 	if len(args) == 1 {
 		file, err = os.Open(args[0])
 	}
-	if len(args) == 2 {
-		if args[0] == "-d" {
-			debug_mode = true
-		}
-		file, err = os.Open(args[1])
-	}
-	if len(args) > 2 {
+	if len(args) > 1 {
 		fmt.Println("Multiple arguments passed. This is currently unsupported.")
+		os.Exit(1)
 	}
 	if err != nil {
 		panic(err)
@@ -65,8 +69,9 @@ func main() {
 		}
 		os.Exit(1)
 	}
-	if debug_mode {
-		fmt.Println("Debug info:\n-------------")
+	if *debug_flag {
+		fmt.Println("-------------\nDebug info:")
+		fmt.Println("\nLexer output:")
 		for _, tok := range tokens {
 			fmt.Printf("%+v\n", tok)
 		}
@@ -80,8 +85,9 @@ func main() {
 		}
 		os.Exit(1)
 	}
-	if debug_mode {
-		program.Print()
+	if *debug_flag {
+		fmt.Println("\nParser output:")
+		program.Print("")
 		fmt.Println()
 		fmt.Println("------------")
 	}

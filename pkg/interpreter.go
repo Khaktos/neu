@@ -698,8 +698,9 @@ func (cmd *Command) Interpret(env *Env) {
 		}
 	}
 }
-func (cmd *Command) Print() {
-	fmt.Printf("(%v ", cmd.stmt_type)
+func (cmd *Command) Print(in string) {
+	// fmt.Print(in)
+	fmt.Printf("%s(%v ", in, cmd.stmt_type)
 	if cmd.stmt_type == vardef_cmd {
 		fmt.Printf("%s, %s", cmd.id, cmd.vtype)
 	}
@@ -712,8 +713,10 @@ func (cmd *Command) Print() {
 			if b_cmd == nil {
 				continue
 			}
-			b_cmd.Print()
+			b_cmd.Print(fmt.Sprintf("  %s", in))
 		}
+	} else {
+		in = ""
 	}
-	fmt.Print(")\n")
+	fmt.Printf("%s)\n", in)
 }
