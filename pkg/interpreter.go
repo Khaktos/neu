@@ -308,9 +308,9 @@ func eval_binary(lval, rval any, oper Token) any {
 		if got_nul(ltype, rtype, oper.Line, oper.Start) {
 			return nil
 		}
-		unsupp := []string{"bool", "str", "char"}
+		unsupp := []string{"bool", "char"}
 		if slices.Contains(unsupp, ltype) || slices.Contains(unsupp, rtype) {
-			print_error(oper.Line, oper.Start, "This operator does not support booleans, strings or characters")
+			print_error(oper.Line, oper.Start, "This operator does not support booleans or characters")
 			return nil
 		}
 		if ltype != rtype {
@@ -329,6 +329,9 @@ func eval_binary(lval, rval any, oper Token) any {
 		}
 		if ltype == "float" {
 			return lval.(float64) + rval.(float64)
+		}
+		if ltype == "str" {
+			return fmt.Sprintf("%s%s", lval.(string), rval.(string))
 		}
 		print_error(oper.Line, oper.Start, "Something went wrong in type checking")
 		return nil
