@@ -270,7 +270,7 @@ func match_number(line string, end *int) (string, bool, int) {
 		*end = len(runes)
 		return string(digits), true, -1
 	}
-	endindgs := []rune{' ', '+', '-', '*', '/', '%', ')', '<', '>', '=', '!'}
+	endindgs := []rune{' ', '+', '-', '*', '/', '%', ')', '<', '>', '=', '!', ','}
 	if slices.Contains(endindgs, runes[endval]) {
 		*end = endval - 1
 		return string(digits), true, -1
