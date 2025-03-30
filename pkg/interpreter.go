@@ -577,7 +577,7 @@ func do_read(env *Env, cmd *Command) {
 	text = strings.TrimSpace(text)
 	var val any
 	var err error
-	//probably convert type here?
+
 	switch valtype {
 	case Type_num:
 		val, err = strconv.Atoi(text)
@@ -589,7 +589,7 @@ func do_read(env *Env, cmd *Command) {
 			}
 		}
 	case Type_char:
-		if len(text) > 1 {
+		if len(text) > 1 || len(text) == 0 {
 			print_error(cmd.head.oper.Line, cmd.head.oper.Start, "Can not convert to KAR type")
 			return
 		}
@@ -607,14 +607,14 @@ func do_read(env *Env, cmd *Command) {
 }
 
 func (cmd *Command) Interpret(env *Env) {
+	if had_error {
+		return
+	}
 	switch cmd.stmt_type {
 	case expr_cmd:
 		cmd.head.eval(env)
 	case print_cmd:
 		out := cmd.head.eval(env)
-		if had_error {
-			return
-		}
 		fmt.Print(stringify(out))
 	case read_cmd:
 		do_read(env, cmd)
@@ -660,8 +660,6 @@ func (cmd *Command) Interpret(env *Env) {
 			break
 		default:
 			print_error(cmd.head.oper.Line, cmd.head.oper.Start, "Type must be boolean expression")
-		}
-		if had_error {
 			return
 		}
 		if decide.(bool) {
@@ -679,8 +677,6 @@ func (cmd *Command) Interpret(env *Env) {
 			break
 		default:
 			print_error(cmd.head.oper.Line, cmd.head.oper.Start, "Type must be integer expression")
-		}
-		if had_error {
 			return
 		}
 		if cmd.body[1] == nil {
@@ -709,8 +705,6 @@ func (cmd *Command) Interpret(env *Env) {
 			break
 		default:
 			print_error(cmd.head.oper.Line, cmd.head.oper.Start, "Type must be boolean expression")
-		}
-		if had_error {
 			return
 		}
 		if cmd.body[1] == nil {
@@ -742,7 +736,6 @@ func (cmd *Command) Interpret(env *Env) {
 	}
 }
 func (cmd *Command) Print(in string) {
-	// fmt.Print(in)
 	fmt.Printf("%s(%v ", in, cmd.stmt_type)
 	if cmd.stmt_type == vardef_cmd {
 		fmt.Printf("%s, %s", cmd.id, cmd.vtype)
