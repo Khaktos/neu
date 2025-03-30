@@ -61,6 +61,14 @@ func (e *Env) Get(id string, line, pos int) any {
 	}
 	return val
 }
+func (e *Env) Get_type(id string, line, pos int) TokenType {
+	c_typ, ok := e.Types[id]
+	if !ok {
+		print_error(line, pos, "Variable is undeclared")
+		return Nul
+	}
+	return c_typ
+}
 
 func unwrap_type(left, right any) (ltype, rtype string) {
 	switch left.(type) {
@@ -552,6 +560,52 @@ func stringify(stuf any) string {
 	}
 }
 
+var reader *bufio.Reader
+
+func do_read(env *Env, cmd *Command) {
+	if cmd.head.oper.Token_type != Identifier {
+		print_error(cmd.head.oper.Line, cmd.head.oper.Start, "Reading can only be into variables")
+		return
+	}
+	if reader == nil {
+		reader = bufio.NewReader(os.Stdin)
+	}
+
+	fmt.Printf("%s ?>", cmd.head.oper.Lexeme)
+	valtype := env.Get_type(cmd.head.oper.Lexeme, cmd.head.oper.Line, cmd.head.oper.Start)
+	text, _ := reader.ReadString('\n')
+	text = strings.TrimSpace(text)
+	var val any
+	var err error
+	//probably convert type here?
+	switch valtype {
+	case Type_num:
+		val, err = strconv.Atoi(text)
+		if err != nil {
+			val, err = strconv.ParseFloat(text, 64)
+			if err != nil {
+				print_error(cmd.head.oper.Line, cmd.head.oper.Start, "Can not convert to NUM type")
+				return
+			}
+		}
+	case Type_char:
+		if len(text) > 1 {
+			print_error(cmd.head.oper.Line, cmd.head.oper.Start, "Can not convert to KAR type")
+			return
+		}
+		val = []rune(text)[0]
+	case Type_bool:
+		if text != "IGAZ" && text != "HAMIS" {
+			print_error(cmd.head.oper.Line, cmd.head.oper.Start, "Can not convert to LOG type")
+			return
+		}
+		val = text == "IGAZ"
+	case Type_str:
+		val = text
+	}
+	env.Put(cmd.head.oper.Lexeme, valtype, val, cmd.head.oper.Line, cmd.head.oper.Start)
+}
+
 func (cmd *Command) Interpret(env *Env) {
 	switch cmd.stmt_type {
 	case expr_cmd:
@@ -563,21 +617,7 @@ func (cmd *Command) Interpret(env *Env) {
 		}
 		fmt.Print(stringify(out))
 	case read_cmd:
-		if cmd.head.oper.Token_type != Identifier {
-			print_error(cmd.head.oper.Line, cmd.head.oper.Start, "Reading can only be into variables")
-			return
-		}
-		reader := bufio.NewReader(os.Stdin)
-
-		fmt.Printf("%s ?>", cmd.head.oper.Lexeme)
-		text, _ := reader.ReadString('\n')
-		text = strings.TrimSpace(text)
-		//probably convert type here?
-		num, err := strconv.Atoi(text)
-		if err != nil {
-			panic(err)
-		}
-		env.Put(cmd.head.oper.Lexeme, Type_num, num, cmd.head.oper.Line, cmd.head.oper.Start)
+		do_read(env, cmd)
 	case vardef_cmd:
 		env.Define(cmd.id, cmd.vtype)
 		fallthrough
