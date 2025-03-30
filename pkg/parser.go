@@ -363,18 +363,40 @@ func parse_while(tokens []Token, current *int) (*Command, error) {
 	return &Command{while_cmd, head, body, "", Nul}, nil
 }
 
+func parse_print(tokens []Token, current *int) (*Command, error) {
+
+	var body []*Command
+	expr, err := parse_expression(tokens, current)
+	if err != nil {
+		return nil, err
+	}
+
+	body = append(body, &Command{print_cmd, expr, nil, "", Nul})
+
+	for match_token(tokens, current, Comma) {
+		expr, err = parse_expression(tokens, current)
+		if err != nil {
+			return nil, err
+		}
+		space := TreeNode{oper: Token{Lit_str, "<PRINT-SEP>", " ", tokens[*current].Line, tokens[*current].Start}}
+		body = append(body, &Command{print_cmd, &space, nil, "", Nul})
+		body = append(body, &Command{print_cmd, expr, nil, "", Nul})
+	}
+	err = expect_nl(tokens, current)
+	if err != nil {
+		return nil, err
+	}
+
+	newline := TreeNode{oper: Token{Lit_str, "<PRINT-NL>", "\n", tokens[*current].Line, tokens[*current].Start}}
+	body = append(body, &Command{print_cmd, &newline, nil, "", Nul})
+	// &Command{block, nil, body, "", Nul}
+	return &Command{block, nil, body, "", Nul}, nil
+}
+
 func parse_command(tokens []Token, current *int) (*Command, error) {
 	//printing
 	if match_token(tokens, current, C_print) {
-		head, err := parse_expression(tokens, current)
-		if err != nil {
-			return nil, err
-		}
-		err = expect_nl(tokens, current)
-		if err != nil {
-			return nil, err
-		}
-		return &Command{print_cmd, head, nil, "", Nul}, nil
+		return parse_print(tokens, current)
 	}
 	//reading
 	if match_token(tokens, current, C_read) {

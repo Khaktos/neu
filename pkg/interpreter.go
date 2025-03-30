@@ -561,7 +561,7 @@ func (cmd *Command) Interpret(env *Env) {
 		if had_error {
 			return
 		}
-		fmt.Println(stringify(out))
+		fmt.Print(stringify(out))
 	case read_cmd:
 		if cmd.head.oper.Token_type != Identifier {
 			print_error(cmd.head.oper.Line, cmd.head.oper.Start, "Reading can only be into variables")
