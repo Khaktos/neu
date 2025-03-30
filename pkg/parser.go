@@ -77,7 +77,6 @@ func (e *ParseError) Error() string {
 }
 
 func expect_nl(tokens []Token, current *int) error {
-
 	if !(match_token(tokens, current, Nl)) {
 		re := &ParseError{tokens[*current].Line, tokens[*current].Start, "New line expected"}
 		sync_to_next_cmd(tokens, current)
@@ -131,10 +130,7 @@ func parse_primary(tokens []Token, current *int) (*TreeNode, error) {
 		}
 	}
 
-	// node := &TreeNode{oper: Token{Nul, "SEMMI", nil, tokens[*current].Line, tokens[*current].Start}}
 	*current++
-	// fmt.Println(tokens[*current])
-	// return node, nil
 	return nil, &ParseError{tokens[*current].Line, tokens[*current].Start, "Primary token missing"}
 }
 
@@ -289,12 +285,20 @@ func parse_if(tokens []Token, current *int) (*Command, error) {
 	return &Command{if_cmd, head, body, "", Nul}, nil
 }
 
-func parse_for(tokens []Token, current *int) (*Command, error) {
+func parse_loop(tokens []Token, current *int, loop_type CommandType) (*Command, error) {
+	if loop_type != for_cmd && loop_type != while_cmd {
+		panic("Unknown loop type")
+	}
+	msg_type := "ISM"
+	if loop_type == while_cmd {
+		msg_type = "CIKLUS"
+	}
+	message := fmt.Sprintf("%s tag not closed", msg_type)
 	end_for := *current
 	for ; end_for < len(tokens) && !(tokens[end_for].Token_type == Ed_for); end_for++ {
 	}
 	if end_for == len(tokens) {
-		return nil, &ParseError{tokens[end_for-1].Line, tokens[end_for-1].Start, "ISM tag not closed"}
+		return nil, &ParseError{tokens[end_for-1].Line, tokens[end_for-1].Start, message}
 	}
 	head, err := parse_expression(tokens, current)
 	var idx_def *Command
@@ -323,48 +327,10 @@ func parse_for(tokens []Token, current *int) (*Command, error) {
 	body = append(body, idx_def)
 	body = append(body, for_block)
 
-	return &Command{for_cmd, head, body, "", Nul}, nil
-}
-
-func parse_while(tokens []Token, current *int) (*Command, error) {
-	end_while := *current
-	for ; end_while < len(tokens) && !(tokens[end_while].Token_type == Ed_while); end_while++ {
-	}
-	if end_while == len(tokens) {
-		return nil, &ParseError{tokens[end_while-1].Line, tokens[end_while-1].Start, "CIKLUS tag not closed"}
-	}
-	head, err := parse_expression(tokens, current)
-	var idx_def *Command
-	if match_token(tokens, current, Identifier) {
-		// index variable
-		// define new num variable
-		// set value to zero
-		idx_par := Token{Lit_num, "<IDX-PAR>", 0, tokens[*current].Line, tokens[*current].Start + 1}
-		idx_literal := &TreeNode{oper: idx_par}
-		idx_def = &Command{vardef_cmd, idx_literal, nil, tokens[*current-1].Lexeme, Type_num}
-	}
-	err = expect_nl(tokens, current)
-	if err != nil {
-		return nil, err
-	}
-	for_block, err := parse_block(tokens, current, Ed_while)
-	if err != nil {
-		return nil, err
-	}
-	match_token(tokens, current, Ed_while)
-	err = expect_nl(tokens, current)
-	if err != nil {
-		return nil, err
-	}
-	var body []*Command
-	body = append(body, idx_def)
-	body = append(body, for_block)
-
-	return &Command{while_cmd, head, body, "", Nul}, nil
+	return &Command{loop_type, head, body, "", Nul}, nil
 }
 
 func parse_print(tokens []Token, current *int) (*Command, error) {
-
 	var body []*Command
 	expr, err := parse_expression(tokens, current)
 	if err != nil {
@@ -389,7 +355,6 @@ func parse_print(tokens []Token, current *int) (*Command, error) {
 
 	newline := TreeNode{oper: Token{Lit_str, "<PRINT-NL>", "\n", tokens[*current].Line, tokens[*current].Start}}
 	body = append(body, &Command{print_cmd, &newline, nil, "", Nul})
-	// &Command{block, nil, body, "", Nul}
 	return &Command{block, nil, body, "", Nul}, nil
 }
 
@@ -459,7 +424,7 @@ func parse_command(tokens []Token, current *int) (*Command, error) {
 	}
 	//for
 	if match_token(tokens, current, St_for) {
-		cmd, err := parse_for(tokens, current)
+		cmd, err := parse_loop(tokens, current, for_cmd)
 		if err != nil {
 			return nil, err
 		}
@@ -467,7 +432,7 @@ func parse_command(tokens []Token, current *int) (*Command, error) {
 	}
 	//while
 	if match_token(tokens, current, St_while) {
-		cmd, err := parse_while(tokens, current)
+		cmd, err := parse_loop(tokens, current, while_cmd)
 		if err != nil {
 			return nil, err
 		}
