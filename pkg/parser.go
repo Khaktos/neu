@@ -537,8 +537,7 @@ func Parser(tokens []Token) (*Command, []error) {
 		start = 0
 	}
 	if end < 0 {
-		etok := len(tokens) - 2
-		etok = max(0, etok)
+		etok := max(0, len(tokens)-2)
 		err = append(err, &ParseError{tokens[etok].Line, tokens[etok].Start, "PROG tag not closed"})
 		end = len(tokens)
 	}
@@ -549,6 +548,8 @@ func Parser(tokens []Token) (*Command, []error) {
 
 	if !match_token(main_tokens, &current, Identifier) {
 		err = append(err, &ParseError{main_tokens[current].Line, main_tokens[current].Start, "No PROG indentifier"})
+		// sync_to_next_cmd(main_tokens, &current)
+		current++
 	} else {
 		head = &TreeNode{oper: main_tokens[current-1]}
 	}
@@ -558,7 +559,7 @@ func Parser(tokens []Token) (*Command, []error) {
 	}
 
 	var body []*Command
-	for current != len(main_tokens) {
+	for current < len(main_tokens) && main_tokens[current].Token_type != Eof {
 		cmd, e := parse_command(main_tokens, &current)
 		if e != nil {
 			err = append(err, e)

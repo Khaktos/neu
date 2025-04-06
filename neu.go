@@ -60,7 +60,6 @@ func main() {
 		}
 		tokens = append(tokens, line_tokens...)
 	}
-	tokens = tokens[:len(tokens)-1]
 	tokens = append(tokens, neu.Token{Token_type: neu.Eof, Lexeme: "EOF", Literal: nil, Line: len(lines) + 1})
 
 	if had_error {
