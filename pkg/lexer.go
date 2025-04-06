@@ -225,7 +225,7 @@ type LexError struct {
 }
 
 func (e *LexError) Error() string {
-	return fmt.Sprintf("[ERROR] Scanning Line %d Column %d: %s", e.pos, e.line, e.msg)
+	return fmt.Sprintf("[ERROR] Scanning Line %d Column %d: %s", e.line, e.pos, e.msg)
 }
 
 func next_match(line, check string, end *int) bool {
@@ -448,6 +448,11 @@ func Lexer(line string, line_num int) ([]Token, []error) {
 				}
 			} else if unicode.IsLetter(char) || char == ':' {
 				value, token_type := match_identifier(line, &current)
+				if value == "" {
+					fmt.Println(line_num)
+					current++
+					continue
+				}
 				if token_type == Lit_true || token_type == Lit_false {
 					c_token = Token{token_type, value, token_type == Lit_true, line_num, current}
 				} else {

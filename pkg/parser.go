@@ -496,18 +496,20 @@ func parse_command(tokens []Token, current *int) (*Command, error) {
 		return cmd, nil
 	}
 
-	//fallback -> naked expression
-	{
-		head, err := parse_expression(tokens, current)
-		if err != nil {
-			return nil, err
-		}
-		err = expect_nl(tokens, current)
-		if err != nil {
-			return nil, err
-		}
-		return &Command{expr_cmd, head, nil, "", Nul}, nil
-	}
+	return nil, &ParseError{tokens[*current].Line, tokens[*current].Start, "Unrecognized command type"}
+
+	// //fallback -> naked expression
+	// {
+	// 	head, err := parse_expression(tokens, current)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	err = expect_nl(tokens, current)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	return &Command{expr_cmd, head, nil, "", Nul}, nil
+	// }
 }
 
 func sync_to_next_cmd(tokens []Token, current *int) {
@@ -517,7 +519,7 @@ func sync_to_next_cmd(tokens []Token, current *int) {
 			break
 		}
 	}
-	*current--
+	// *current--
 }
 
 func Parser(tokens []Token) (*Command, []error) {
