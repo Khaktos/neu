@@ -129,8 +129,9 @@ func parse_primary(tokens []Token, current *int) (*TreeNode, error) {
 			return nil, &ParseError{paren.Line, paren.Start, "Unclosed parenthesis"}
 		}
 	}
-
-	*current++
+	if match_token(tokens, current, R_paren) {
+		return nil, &ParseError{tokens[*current].Line, tokens[*current].Start, "TODO: handle '()'"}
+	}
 	return nil, &ParseError{tokens[*current].Line, tokens[*current].Start, "Primary token missing"}
 }
 
@@ -302,13 +303,17 @@ func parse_loop(tokens []Token, current *int, loop_type CommandType) (*Command, 
 	}
 	head, err := parse_expression(tokens, current)
 	var idx_def *Command
-	if match_token(tokens, current, Identifier) {
-		// index variable
-		// define new num variable
-		// set value to zero
-		idx_par := Token{Lit_num, "<IDX-PAR>", 0, tokens[*current].Line, tokens[*current].Start + 1}
-		idx_literal := &TreeNode{oper: idx_par}
-		idx_def = &Command{vardef_cmd, idx_literal, nil, tokens[*current-1].Lexeme, Type_num}
+	if match_token(tokens, current, Comma) {
+		if match_token(tokens, current, Identifier) {
+			// index variable
+			// define new num variable
+			// set value to zero
+			idx_par := Token{Lit_num, "<IDX-PAR>", 0, tokens[*current].Line, tokens[*current].Start + 1}
+			idx_literal := &TreeNode{oper: idx_par}
+			idx_def = &Command{vardef_cmd, idx_literal, nil, tokens[*current-1].Lexeme, Type_num}
+		} else {
+			return nil, &ParseError{tokens[*current].Line, tokens[*current].Start, "Expected indexing variable"}
+		}
 	}
 	err = expect_nl(tokens, current)
 	if err != nil {

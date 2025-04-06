@@ -9,9 +9,9 @@ branch ::= "HA:" expression "\n" commands (":DE-HA:" commands)* (":NEM-HA:" comm
 
 loop ::= condition-loop | counter-loop
 
-condition-loop ::= "CIKLUS:" expression (identifier)? "\n" commands ":CIKLUS"
+condition-loop ::= "CIKLUS:" expression ("," identifier)? "\n" commands ":CIKLUS"
 
-counter-loop ::= "ISM:" expression (identifier)? "\n" commands ":ISM"
+counter-loop ::= "ISM:" expression ("," identifier)? "\n" commands ":ISM"
 
 io ::= (identifier)? ("KI:" expression ("," expression)* | "BE:" identifier ("," identifier)*)
 
