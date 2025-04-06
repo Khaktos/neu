@@ -90,9 +90,9 @@ func match_token(tokens []Token, current *int, t_match ...TokenType) bool {
 		return false
 	}
 	if slices.Contains(t_match, tokens[*current].Token_type) {
-		if !(*current+1 >= len(tokens)) {
-			*current++
-		}
+		// if !(*current+1 >= len(tokens)) {
+		*current++
+		// }
 		return true
 	} else {
 		return false
@@ -112,6 +112,26 @@ func match_token_seq(tokens []Token, current *int, seq []TokenType) bool {
 	return succ
 }
 
+func contains_type(tokens []Token, typ TokenType) bool {
+	contain := false
+	for _, token := range tokens {
+		if token.Token_type == typ {
+			contain = true
+			break
+		}
+	}
+	return contain
+}
+
+func find_last(tokens []Token, typ TokenType) int {
+	for i, v := range slices.Backward(tokens) {
+		if v.Token_type == typ {
+			return i
+		}
+	}
+	return -1
+}
+
 func parse_primary(tokens []Token, current *int) (*TreeNode, error) {
 	if match_token(tokens, current, Lit_false, Lit_true, Lit_char, Lit_num, Lit_str, Nul, Identifier) {
 		literal := tokens[*current-1]
@@ -128,9 +148,18 @@ func parse_primary(tokens []Token, current *int) (*TreeNode, error) {
 		} else {
 			return nil, &ParseError{paren.Line, paren.Start, "Unclosed parenthesis"}
 		}
-	}
-	if match_token(tokens, current, R_paren) {
-		return nil, &ParseError{tokens[*current].Line, tokens[*current].Start, "TODO: handle '()'"}
+		// end := find_last(tokens, R_paren)
+		// fmt.Println(*current, end)
+		// if end == -1 {
+		// 	return nil, &ParseError{paren.Line, paren.Start, "Unclosed parenthesis"}
+		// }
+		// sub_curr := 0
+		// expr, err := parse_expression(tokens[*current:end], &sub_curr)
+		// if err != nil {
+		// 	return nil, err
+		// }
+		// *current = end
+		// return &TreeNode{left: expr, oper: paren}, nil
 	}
 	return nil, &ParseError{tokens[*current].Line, tokens[*current].Start, "Primary token missing"}
 }
@@ -146,12 +175,16 @@ func parse_unary(tokens []Token, current *int) (*TreeNode, error) {
 
 func parse_factor(tokens []Token, current *int) (*TreeNode, error) {
 	expr, err := parse_unary(tokens, current)
+	// if err != nil {
+	// return nil, err
+	// }
 	for match_token(tokens, current, Star, Slash, Sl_slash, Percent) {
 		operator := tokens[*current-1]
 		right, e := parse_unary(tokens, current)
 		expr = &TreeNode{left: expr, right: right, oper: operator}
 		if e != nil {
 			err = e
+			// return expr, e
 		}
 	}
 	return expr, err
@@ -159,12 +192,16 @@ func parse_factor(tokens []Token, current *int) (*TreeNode, error) {
 
 func parse_term(tokens []Token, current *int) (*TreeNode, error) {
 	expr, err := parse_factor(tokens, current)
+	// if err != nil {
+	// return nil, err
+	// }
 	for match_token(tokens, current, Plus, Minus) {
 		operator := tokens[*current-1]
 		right, e := parse_factor(tokens, current)
 		expr = &TreeNode{left: expr, right: right, oper: operator}
 		if e != nil {
 			err = e
+			// return expr, e
 		}
 	}
 	return expr, err
@@ -172,12 +209,16 @@ func parse_term(tokens []Token, current *int) (*TreeNode, error) {
 
 func parse_comparison(tokens []Token, current *int) (*TreeNode, error) {
 	expr, err := parse_term(tokens, current)
+	// if err != nil {
+	// return nil, err
+	// }
 	for match_token(tokens, current, Greater, G_equal, Less, L_equal) {
 		operator := tokens[*current-1]
 		right, e := parse_term(tokens, current)
 		expr = &TreeNode{left: expr, right: right, oper: operator}
 		if e != nil {
 			err = e
+			// return expr, e
 		}
 	}
 	return expr, err
@@ -185,25 +226,36 @@ func parse_comparison(tokens []Token, current *int) (*TreeNode, error) {
 
 func parse_equality(tokens []Token, current *int) (*TreeNode, error) {
 	expr, err := parse_comparison(tokens, current)
+	// if err != nil {
+	// return nil, err
+	// }
 	for match_token(tokens, current, E_equal, N_equal) {
 		operator := tokens[*current-1]
 		right, e := parse_comparison(tokens, current)
 		expr = &TreeNode{left: expr, right: right, oper: operator}
 		if e != nil {
 			err = e
+			// return expr, e
 		}
 	}
 	return expr, err
 }
 
 func parse_expression(tokens []Token, current *int) (*TreeNode, error) {
+	if len(tokens) == 0 {
+		return nil, &ParseError{0, 0, "Primary token missing"}
+	}
 	expr, err := parse_equality(tokens, current)
+	// if err != nil {
+	// return nil, err
+	// }
 	for match_token(tokens, current, And, Or) {
 		operator := tokens[*current-1]
 		right, e := parse_equality(tokens, current)
 		expr = &TreeNode{left: expr, right: right, oper: operator}
 		if e != nil {
 			err = e
+			// return expr, e
 		}
 	}
 	return expr, err
@@ -358,7 +410,7 @@ func parse_print(tokens []Token, current *int) (*Command, error) {
 		return nil, err
 	}
 
-	newline := TreeNode{oper: Token{Lit_str, "<PRINT-NL>", "\n", tokens[*current].Line, tokens[*current].Start}}
+	newline := TreeNode{oper: Token{Lit_str, "<PRINT-NL>", "\n", tokens[*current-1].Line, tokens[*current-1].Start}}
 	body = append(body, &Command{print_cmd, &newline, nil, "", Nul})
 	return &Command{block, nil, body, "", Nul}, nil
 }
@@ -506,10 +558,11 @@ func Parser(tokens []Token) (*Command, []error) {
 	}
 
 	var body []*Command
-	for current != len(main_tokens)-1 {
+	for current != len(main_tokens) {
 		cmd, e := parse_command(main_tokens, &current)
 		if e != nil {
 			err = append(err, e)
+			sync_to_next_cmd(main_tokens, &current)
 			continue
 		}
 		body = append(body, cmd)

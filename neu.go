@@ -72,8 +72,8 @@ func main() {
 	if *debug_flag {
 		fmt.Println("-------------\nDebug info:")
 		fmt.Println("\nLexer output:")
-		for _, tok := range tokens {
-			fmt.Printf("%+v\n", tok)
+		for i, tok := range tokens {
+			fmt.Printf("%d: %+v\n", i, tok)
 		}
 	}
 
