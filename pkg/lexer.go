@@ -225,7 +225,7 @@ type LexError struct {
 }
 
 func (e *LexError) Error() string {
-	return fmt.Sprintf("[ERROR] Scanning Line %d Column %d: %s", e.line, e.pos, e.msg)
+	return fmt.Sprintf("[ERROR] Scanning: Line %d Column %d: %s", e.line, e.pos, e.msg)
 }
 
 func next_match(line, check string, end *int) bool {

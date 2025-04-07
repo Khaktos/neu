@@ -73,7 +73,7 @@ type ParseError struct {
 }
 
 func (e *ParseError) Error() string {
-	return fmt.Sprintf("[ERROR] Parsing Line %d Column %d: %s", e.line, e.pos+1, e.msg)
+	return fmt.Sprintf("[ERROR] Parsing: Line %d Column %d: %s", e.line, e.pos+1, e.msg)
 }
 
 func expect_nl(tokens []Token, current *int) error {
@@ -90,9 +90,7 @@ func match_token(tokens []Token, current *int, t_match ...TokenType) bool {
 		return false
 	}
 	if slices.Contains(t_match, tokens[*current].Token_type) {
-		// if !(*current+1 >= len(tokens)) {
 		*current++
-		// }
 		return true
 	} else {
 		return false
@@ -148,18 +146,6 @@ func parse_primary(tokens []Token, current *int) (*TreeNode, error) {
 		} else {
 			return nil, &ParseError{paren.Line, paren.Start, "Unclosed parenthesis"}
 		}
-		// end := find_last(tokens, R_paren)
-		// fmt.Println(*current, end)
-		// if end == -1 {
-		// 	return nil, &ParseError{paren.Line, paren.Start, "Unclosed parenthesis"}
-		// }
-		// sub_curr := 0
-		// expr, err := parse_expression(tokens[*current:end], &sub_curr)
-		// if err != nil {
-		// 	return nil, err
-		// }
-		// *current = end
-		// return &TreeNode{left: expr, oper: paren}, nil
 	}
 	return nil, &ParseError{tokens[*current].Line, tokens[*current].Start, "Primary token missing"}
 }
@@ -175,16 +161,12 @@ func parse_unary(tokens []Token, current *int) (*TreeNode, error) {
 
 func parse_factor(tokens []Token, current *int) (*TreeNode, error) {
 	expr, err := parse_unary(tokens, current)
-	// if err != nil {
-	// return nil, err
-	// }
 	for match_token(tokens, current, Star, Slash, Sl_slash, Percent) {
 		operator := tokens[*current-1]
 		right, e := parse_unary(tokens, current)
 		expr = &TreeNode{left: expr, right: right, oper: operator}
 		if e != nil {
 			err = e
-			// return expr, e
 		}
 	}
 	return expr, err
@@ -192,16 +174,12 @@ func parse_factor(tokens []Token, current *int) (*TreeNode, error) {
 
 func parse_term(tokens []Token, current *int) (*TreeNode, error) {
 	expr, err := parse_factor(tokens, current)
-	// if err != nil {
-	// return nil, err
-	// }
 	for match_token(tokens, current, Plus, Minus) {
 		operator := tokens[*current-1]
 		right, e := parse_factor(tokens, current)
 		expr = &TreeNode{left: expr, right: right, oper: operator}
 		if e != nil {
 			err = e
-			// return expr, e
 		}
 	}
 	return expr, err
@@ -209,16 +187,12 @@ func parse_term(tokens []Token, current *int) (*TreeNode, error) {
 
 func parse_comparison(tokens []Token, current *int) (*TreeNode, error) {
 	expr, err := parse_term(tokens, current)
-	// if err != nil {
-	// return nil, err
-	// }
 	for match_token(tokens, current, Greater, G_equal, Less, L_equal) {
 		operator := tokens[*current-1]
 		right, e := parse_term(tokens, current)
 		expr = &TreeNode{left: expr, right: right, oper: operator}
 		if e != nil {
 			err = e
-			// return expr, e
 		}
 	}
 	return expr, err
@@ -226,16 +200,12 @@ func parse_comparison(tokens []Token, current *int) (*TreeNode, error) {
 
 func parse_equality(tokens []Token, current *int) (*TreeNode, error) {
 	expr, err := parse_comparison(tokens, current)
-	// if err != nil {
-	// return nil, err
-	// }
 	for match_token(tokens, current, E_equal, N_equal) {
 		operator := tokens[*current-1]
 		right, e := parse_comparison(tokens, current)
 		expr = &TreeNode{left: expr, right: right, oper: operator}
 		if e != nil {
 			err = e
-			// return expr, e
 		}
 	}
 	return expr, err
@@ -246,16 +216,12 @@ func parse_expression(tokens []Token, current *int) (*TreeNode, error) {
 		return nil, &ParseError{0, 0, "Primary token missing"}
 	}
 	expr, err := parse_equality(tokens, current)
-	// if err != nil {
-	// return nil, err
-	// }
 	for match_token(tokens, current, And, Or) {
 		operator := tokens[*current-1]
 		right, e := parse_equality(tokens, current)
 		expr = &TreeNode{left: expr, right: right, oper: operator}
 		if e != nil {
 			err = e
-			// return expr, e
 		}
 	}
 	return expr, err
@@ -276,11 +242,9 @@ func parse_block(tokens []Token, current *int, closers ...TokenType) (*Command, 
 
 func parse_if(tokens []Token, current *int) (*Command, error) {
 	// find Ed_if
-	end_if := *current
-	for ; end_if < len(tokens) && !(tokens[end_if].Token_type == Ed_if); end_if++ {
-	}
-	if end_if == len(tokens) {
-		return nil, &ParseError{tokens[end_if-1].Line, tokens[end_if-1].Start, "HA tag not closed"}
+	end_if := slices.IndexFunc(tokens[*current:], func(e Token) bool { return e.Token_type == Ed_if })
+	if end_if < 0 {
+		return nil, &ParseError{tokens[*current].Line, tokens[*current].Start, "HA tag not closed"}
 	}
 
 	head, err := parse_expression(tokens, current)
@@ -291,12 +255,12 @@ func parse_if(tokens []Token, current *int) (*Command, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	true_cmd, err := parse_block(tokens, current, Ed_if, St_elif, St_else)
 	if err != nil {
 		return nil, err
 	}
 
+	//TODO: possible easier implementation?
 	var false_cmd *Command
 	if tokens[*current].Token_type != Ed_if {
 		//check if elif: -> parse as if
@@ -343,15 +307,15 @@ func parse_loop(tokens []Token, current *int, loop_type CommandType) (*Command, 
 		panic("Unknown loop type")
 	}
 	msg_type := "ISM"
+	end_type := Ed_for
 	if loop_type == while_cmd {
 		msg_type = "CIKLUS"
+		end_type = Ed_while
 	}
 	message := fmt.Sprintf("%s tag not closed", msg_type)
-	end_for := *current
-	for ; end_for < len(tokens) && !(tokens[end_for].Token_type == Ed_for); end_for++ {
-	}
-	if end_for == len(tokens) {
-		return nil, &ParseError{tokens[end_for-1].Line, tokens[end_for-1].Start, message}
+	end_loop := slices.IndexFunc(tokens[*current:], func(e Token) bool { return e.Token_type == end_type })
+	if end_loop < 0 {
+		return nil, &ParseError{tokens[*current].Line, tokens[*current].Start, message}
 	}
 	head, err := parse_expression(tokens, current)
 	var idx_def *Command
@@ -371,18 +335,18 @@ func parse_loop(tokens []Token, current *int, loop_type CommandType) (*Command, 
 	if err != nil {
 		return nil, err
 	}
-	for_block, err := parse_block(tokens, current, Ed_for)
+	loop_block, err := parse_block(tokens, current, end_type)
 	if err != nil {
 		return nil, err
 	}
-	match_token(tokens, current, Ed_for)
+	match_token(tokens, current, end_type)
 	err = expect_nl(tokens, current)
 	if err != nil {
 		return nil, err
 	}
 	var body []*Command
 	body = append(body, idx_def)
-	body = append(body, for_block)
+	body = append(body, loop_block)
 
 	return &Command{loop_type, head, body, "", Nul}, nil
 }
@@ -525,18 +489,13 @@ func sync_to_next_cmd(tokens []Token, current *int) {
 func Parser(tokens []Token) (*Command, []error) {
 	var err []error
 	//find main PROG tags
-	start, end := -1, -1
-	for i := 0; tokens[i].Token_type != Eof; i++ {
-		if tokens[i].Token_type == St_main {
-			start = i + 1
-		}
-		if tokens[i].Token_type == Ed_main {
-			end = i
-		}
-	}
+	start := slices.IndexFunc(tokens, func(e Token) bool { return e.Token_type == St_main })
+	end := slices.IndexFunc(tokens, func(e Token) bool { return e.Token_type == Ed_main })
 	if start < 0 {
 		err = append(err, &ParseError{0, 0, "No PROG tag found"})
 		start = 0
+	} else {
+		start++
 	}
 	if end < 0 {
 		etok := max(0, len(tokens)-2)
