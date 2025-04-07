@@ -92,5 +92,8 @@ func main() {
 	}
 
 	//running
-	program.Interpret(nil)
+	err = program.Interpret(nil)
+	if err != nil {
+		fmt.Fprint(os.Stderr, err)
+	}
 }
