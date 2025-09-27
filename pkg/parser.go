@@ -399,7 +399,7 @@ func parse_command(tokens []Token, current *int) (*Command, error) {
 	//declaration
 	if match_token(tokens, current, Type_bool, Type_char, Type_num, Type_str) {
 		vtype := tokens[*current-1].Token_type
-		if match_token(tokens, current, Identifier) {
+		if match_token_seq(tokens, current, []TokenType{Colon, Identifier}) {
 			id := tokens[*current-1].Lexeme
 			//check if setter expression is present -> add it to head
 			var head *TreeNode
@@ -486,8 +486,96 @@ func sync_to_next_cmd(tokens []Token, current *int) {
 	// *current--
 }
 
+func Pre_parse(tokens []Token) ([]Token, error) {
+	var new_tokens []Token
+	for idx, token := range tokens {
+		prev_colon := tokens[max(idx-1, 0)].Token_type == Colon
+		next_colon := tokens[min(idx+1, len(tokens)-1)].Token_type == Colon
+		include := false
+		curr := token
+		err := &ParseError{curr.Line, curr.Start, "Tag not opened or closed"}
+		switch token.Token_type {
+		case Colon:
+			continue
+		case Main:
+			if next_colon {
+				curr = Token{St_main, "PROG:", nil, curr.Line, curr.Start}
+			} else if prev_colon {
+				curr = Token{Ed_main, ":PROG", nil, curr.Line, curr.Start - 1}
+			} else {
+				return nil, err
+			}
+		case If:
+			if next_colon {
+				curr = Token{St_if, "HA:", nil, curr.Line, curr.Start}
+			} else if prev_colon {
+				curr = Token{Ed_if, ":HA", nil, curr.Line, curr.Start - 1}
+			} else {
+				return nil, err
+			}
+		case Elif:
+			if next_colon && prev_colon {
+				curr = Token{St_elif, ":DE-HA:", nil, curr.Line, curr.Start - 1}
+			} else {
+				return nil, err
+			}
+		case Else:
+			if next_colon && prev_colon {
+				curr = Token{St_else, ":NEM-HA:", nil, curr.Line, curr.Start - 1}
+			} else {
+				return nil, err
+			}
+		case While:
+			if next_colon {
+				curr = Token{St_while, "CIKLUS:", nil, curr.Line, curr.Start}
+			} else if prev_colon {
+				curr = Token{Ed_while, ":CIKLUS", nil, curr.Line, curr.Start - 1}
+			} else {
+				return nil, err
+			}
+		case For:
+			if next_colon {
+				curr = Token{St_for, "ISM:", nil, curr.Line, curr.Start}
+			} else if prev_colon {
+				curr = Token{Ed_for, ":ISM", nil, curr.Line, curr.Start - 1}
+			} else {
+				return nil, err
+			}
+		case Print:
+			if next_colon {
+				curr = Token{C_print, "KI:", nil, curr.Line, curr.Start}
+			} else {
+				return nil, err
+			}
+		case Read:
+			if next_colon {
+				curr = Token{C_read, "BE:", nil, curr.Line, curr.Start}
+			} else {
+				return nil, err
+			}
+		case Type_num:
+			fallthrough
+		case Type_str:
+			fallthrough
+		case Type_bool:
+			fallthrough
+		case Type_char:
+			fallthrough
+		case Type_file:
+			include = next_colon
+
+		}
+		new_tokens = append(new_tokens, curr)
+		if include {
+			new_tokens = append(new_tokens, Token{Colon, ":", nil, curr.Line, curr.Start}) // this start value is currently incorrect
+		}
+	}
+	return new_tokens, nil
+}
+
 func Parser(tokens []Token) (*Command, []error) {
 	var err []error
+
 	//find main PROG tags
 	start := slices.IndexFunc(tokens, func(e Token) bool { return e.Token_type == St_main })
 	end := slices.IndexFunc(tokens, func(e Token) bool { return e.Token_type == Ed_main })

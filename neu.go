@@ -77,6 +77,17 @@ func main() {
 	}
 
 	//parsing
+	tokens, pperr := neu.Pre_parse(tokens)
+	if pperr != nil {
+		fmt.Fprintln(os.Stderr, pperr)
+		os.Exit(1)
+	}
+	if *debug_flag {
+		fmt.Println("\nPre parsing:")
+		for i, tok := range tokens {
+			fmt.Printf("%d: %+v\n", i, tok)
+		}
+	}
 	program, perr := neu.Parser(tokens)
 	if len(perr) != 0 {
 		for _, v := range perr {
