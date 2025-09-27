@@ -567,7 +567,7 @@ func Pre_parse(tokens []Token) ([]Token, error) {
 		}
 		new_tokens = append(new_tokens, curr)
 		if include {
-			new_tokens = append(new_tokens, Token{Colon, ":", nil, curr.Line, curr.Start}) // this start value is currently incorrect
+			new_tokens = append(new_tokens, Token{Colon, ":", nil, curr.Line, curr.Start + 1})
 		}
 	}
 	return new_tokens, nil
