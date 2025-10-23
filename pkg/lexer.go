@@ -237,6 +237,7 @@ var keywords = map[string]TokenType{
 	"TXT":    Type_str,
 	"LOG":    Type_bool,
 	"KAR":    Type_char,
+	"LIST":   Type_list,
 	"FILE":   Type_file,
 	"KI":     Print,
 	"BE":     Read,
@@ -319,12 +320,12 @@ func match_number(line string, end *int) (string, bool, int) {
 
 func is_name_char(char rune) bool {
 	others := []rune{'-', '_', '?'}
-	return unicode.IsLetter(char) || unicode.IsDigit(char) || slices.Contains(others, char)
+	return (unicode.IsLetter(char) || unicode.IsDigit(char) || slices.Contains(others, char)) && (char < 128)
 }
 
 func is_id_char(char rune) bool {
 	others := []rune{'_', '?'}
-	return unicode.IsLetter(char) || unicode.IsDigit(char) || slices.Contains(others, char)
+	return (unicode.IsLetter(char) || unicode.IsDigit(char) || slices.Contains(others, char)) && (char < 128)
 }
 
 func match_identifier(line string, end *int) (string, TokenType) {
@@ -350,8 +351,9 @@ func match_identifier(line string, end *int) (string, TokenType) {
 func Lexer(line string, line_num int) ([]Token, []error) {
 	var tokens []Token
 	var err []error
-	for current := 0; current < len(line); current++ {
-		char := []rune(line)[current]
+	line_chr := []rune(line)
+	for current := 0; current < len(line_chr); current++ {
+		char := line_chr[current]
 		var c_token Token
 		if char == ' ' {
 			continue
@@ -434,7 +436,7 @@ func Lexer(line string, line_num int) ([]Token, []error) {
 				err = append(err, &LexError{line_num, current, "Unterminated character. Missing a: '"})
 				continue
 			}
-			if len(value) > 1 {
+			if len(value) > 1 || len(value) == 0 {
 				err = append(err, &LexError{line_num, current, "Not a character: " + value})
 				continue
 			}
@@ -466,13 +468,8 @@ func Lexer(line string, line_num int) ([]Token, []error) {
 					}
 					c_token = Token{Lit_num, value, num, line_num, current}
 				}
-			} else if unicode.IsLetter(char) || char == ':' {
+			} else if unicode.IsLetter(char) && char < 128 {
 				value, token_type := match_identifier(line, &current)
-				if value == "" {
-					fmt.Println(line_num)
-					current++
-					continue
-				}
 				if token_type == Lit_true || token_type == Lit_false {
 					c_token = Token{token_type, value, token_type == Lit_true, line_num, current}
 				} else {

@@ -318,6 +318,9 @@ func parse_loop(tokens []Token, current *int, loop_type CommandType) (*Command, 
 		return nil, &ParseError{tokens[*current].Line, tokens[*current].Start, message}
 	}
 	head, err := parse_expression(tokens, current)
+	if err != nil {
+		return nil, err
+	}
 	var idx_def *Command
 	if match_token(tokens, current, Comma) {
 		if match_token(tokens, current, Identifier) {
@@ -605,6 +608,8 @@ func Parser(tokens []Token) (*Command, []error) {
 
 	if head != nil && !match_token(main_tokens, &current, Nl) {
 		err = append(err, &ParseError{main_tokens[current].Line, main_tokens[current].Start, "New line expected"})
+		// sync_to_next_cmd(main_tokens, &current)
+		current++
 	}
 
 	var body []*Command
