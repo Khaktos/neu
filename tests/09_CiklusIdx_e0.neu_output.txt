@@ -1,0 +1,2 @@
+[ERROR] Parsing: Line 3 Column 13: Expected indexing variable
+[ERROR] Parsing: Line 6 Column 6: Unrecognized command type: :CIKLUS

@@ -1,0 +1,7 @@
+PROG: ciklus
+NUM: a = 10
+CIKLUS: a>0
+KI: IGAZ
+a = a-1
+
+:PROG

@@ -1,0 +1,5 @@
+PROG: ismidx
+ISM: 10,
+KI: x
+:ISM
+:PROG

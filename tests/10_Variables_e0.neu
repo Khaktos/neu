@@ -1,0 +1,5 @@
+PROG: variables
+NUM a
+a = 10
+KI: a
+:PROG

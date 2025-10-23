@@ -1,0 +1,2 @@
+[ERROR] Parsing: Line 4 Column 8: Primary token missing
+[ERROR] Parsing: Line 6 Column 2: Unrecognized command type: :HA

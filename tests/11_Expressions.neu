@@ -1,0 +1,21 @@
+PROG: expressions
+
+NUM: a = 10
+
+NUM: b = a*10
+
+NUM: c = b+a*10
+
+NUM: d = c/a-b
+
+NUM : e = d//a
+
+NUM :f = d%a
+
+KI: a, b, c, d, e, f
+
+KI: a*10, (10-f)*e+c/2
+
+KI: a<(10-f)*e+c/2 AND a//10==1
+
+:PROG

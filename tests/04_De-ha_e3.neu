@@ -1,0 +1,7 @@
+PROG: deha
+HA: HAMIS
+KI: HAMIS
+:DE-HA IGAZ
+KI: IGAZ
+:HA
+:PROG
