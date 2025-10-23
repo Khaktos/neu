@@ -465,57 +465,57 @@ func eval_binary(lval, rval any, oper Token) (any, error) {
 }
 func (node *TreeNode) eval(env *Env) (any, error) {
 	node_type := 0
-	if node.left != nil {
+	if node.Left != nil {
 		node_type += 1
 	}
-	if node.right != nil {
+	if node.Right != nil {
 		node_type += 10
 	}
 
 	switch node_type {
 	//Literal or variable
 	case 0:
-		if node.oper.Token_type == Identifier {
+		if node.Oper.Token_type == Identifier {
 			//variable
-			return env.Get(node.oper.Lexeme, node.oper.Line, node.oper.Start)
+			return env.Get(node.Oper.Lexeme, node.Oper.Line, node.Oper.Start)
 		} else {
 			//literal
-			return node.oper.Literal, nil
+			return node.Oper.Literal, nil
 		}
 	//Group
 	case 1:
-		return node.left.eval(env)
+		return node.Left.eval(env)
 	//Unary
 	case 10:
-		val, err := node.right.eval(env)
+		val, err := node.Right.eval(env)
 		if err != nil {
 			return nil, err
 		}
-		return eval_unary(val, node.oper)
+		return eval_unary(val, node.Oper)
 	//Binary
 	case 11:
-		lval, lerr := node.left.eval(env)
+		lval, lerr := node.Left.eval(env)
 		if lerr != nil {
 			return nil, lerr
 		}
-		rval, rerr := node.right.eval(env)
+		rval, rerr := node.Right.eval(env)
 		if rerr != nil {
 			return nil, rerr
 		}
-		return eval_binary(lval, rval, node.oper)
+		return eval_binary(lval, rval, node.Oper)
 	default:
 		panic("Error in AST node_type")
 	}
 }
 
 func (node *TreeNode) print() string {
-	ret := fmt.Sprintf("%v", node.oper.Lexeme) + " "
-	if node.left != nil && node.right != nil {
-		ret += "(" + node.left.print() + node.right.print() + ")"
-	} else if node.left != nil {
-		ret = "(group " + node.left.print() + ")"
-	} else if node.right != nil {
-		ret += "(" + node.right.print() + ")"
+	ret := fmt.Sprintf("%v", node.Oper.Lexeme) + " "
+	if node.Left != nil && node.Right != nil {
+		ret += "(" + node.Left.print() + node.Right.print() + ")"
+	} else if node.Left != nil {
+		ret = "(group " + node.Left.print() + ")"
+	} else if node.Right != nil {
+		ret += "(" + node.Right.print() + ")"
 	}
 	return ret
 }
@@ -544,15 +544,15 @@ func stringify(stuf any) string {
 var reader *bufio.Reader
 
 func do_read(env *Env, cmd *Command) error {
-	if cmd.head.oper.Token_type != Identifier {
-		return &RunError{cmd.head.oper.Line, cmd.head.oper.Start, "Reading can only be into variables"}
+	if cmd.Head.Oper.Token_type != Identifier {
+		return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, "Reading can only be into variables"}
 	}
 	if reader == nil {
 		reader = bufio.NewReader(os.Stdin)
 	}
 
-	fmt.Printf("%s ?>", cmd.head.oper.Lexeme)
-	valtype, err := env.Get_type(cmd.head.oper.Lexeme, cmd.head.oper.Line, cmd.head.oper.Start)
+	fmt.Printf("%s ?>", cmd.Head.Oper.Lexeme)
+	valtype, err := env.Get_type(cmd.Head.Oper.Lexeme, cmd.Head.Oper.Line, cmd.Head.Oper.Start)
 	if err != nil {
 		return err
 	}
@@ -569,47 +569,47 @@ func do_read(env *Env, cmd *Command) error {
 		if err != nil {
 			val, err = strconv.ParseFloat(text, 64)
 			if err != nil {
-				return &RunError{cmd.head.oper.Line, cmd.head.oper.Start, "Can not convert to NUM type"}
+				return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, "Can not convert to NUM type"}
 			}
 		}
 	case Type_char:
 		if len(text) > 1 || len(text) == 0 {
-			return &RunError{cmd.head.oper.Line, cmd.head.oper.Start, "Can not convert to KAR type"}
+			return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, "Can not convert to KAR type"}
 		}
 		val = []rune(text)[0]
 	case Type_bool:
 		if text != "IGAZ" && text != "HAMIS" {
-			return &RunError{cmd.head.oper.Line, cmd.head.oper.Start, "Can not convert to LOG type"}
+			return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, "Can not convert to LOG type"}
 		}
 		val = text == "IGAZ"
 	case Type_str:
 		val = text
 	}
-	env.Put(cmd.head.oper.Lexeme, valtype, val, cmd.head.oper.Line, cmd.head.oper.Start)
+	env.Put(cmd.Head.Oper.Lexeme, valtype, val, cmd.Head.Oper.Line, cmd.Head.Oper.Start)
 	return nil
 }
 
 func (cmd *Command) Interpret(env *Env) error {
-	switch cmd.stmt_type {
-	case expr_cmd:
-		cmd.head.eval(env)
-	case print_cmd:
-		out, err := cmd.head.eval(env)
+	switch cmd.Stmt_type {
+	case Expr_cmd:
+		cmd.Head.eval(env)
+	case Print_cmd:
+		out, err := cmd.Head.eval(env)
 		if err != nil {
 			return err
 		}
 		fmt.Print(stringify(out))
-	case read_cmd:
+	case Read_cmd:
 		err := do_read(env, cmd)
 		if err != nil {
 			return err
 		}
-	case vardef_cmd:
-		env.Define(cmd.id, cmd.vtype)
+	case Vardef_cmd:
+		env.Define(cmd.Id, cmd.Vtype)
 		fallthrough
-	case assign_cmd:
-		if cmd.head != nil {
-			val, err := cmd.head.eval(env)
+	case Assign_cmd:
+		if cmd.Head != nil {
+			val, err := cmd.Head.eval(env)
 			if err != nil {
 				return err
 			}
@@ -628,12 +628,12 @@ func (cmd *Command) Interpret(env *Env) error {
 			default:
 				etype = Nul
 			}
-			env.Put(cmd.id, etype, val, cmd.head.oper.Line, 0)
+			env.Put(cmd.Id, etype, val, cmd.Head.Oper.Line, 0)
 		}
-	case prog_cmd:
+	case Prog_cmd:
 		g_env := Env{}
 		g_env.Init(nil)
-		for _, b_cmd := range cmd.body {
+		for _, b_cmd := range cmd.Body {
 			err := b_cmd.Interpret(&g_env)
 			if err != nil {
 				return err
@@ -642,8 +642,8 @@ func (cmd *Command) Interpret(env *Env) error {
 	// other commands are always inside the prog body
 	// meaning we create a new env and link it
 	// to the env we got as an argument
-	case if_cmd:
-		decide, err := cmd.head.eval(env)
+	case If_cmd:
+		decide, err := cmd.Head.eval(env)
 		if err != nil {
 			return err
 		}
@@ -652,24 +652,24 @@ func (cmd *Command) Interpret(env *Env) error {
 			break
 		default:
 			msg := fmt.Sprintf("Value of expression: %s is not a boolean", stringify(decide))
-			return &RunError{cmd.head.oper.Line, cmd.head.oper.Start, msg}
+			return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, msg}
 		}
 		if decide.(bool) {
-			err := cmd.body[0].Interpret(env)
+			err := cmd.Body[0].Interpret(env)
 			if err != nil {
 				return err
 			}
 		} else {
-			if cmd.body[1] == nil {
+			if cmd.Body[1] == nil {
 				return nil
 			}
-			err := cmd.body[1].Interpret(env)
+			err := cmd.Body[1].Interpret(env)
 			if err != nil {
 				return err
 			}
 		}
-	case for_cmd:
-		rep, err := cmd.head.eval(env)
+	case For_cmd:
+		rep, err := cmd.Head.eval(env)
 		if err != nil {
 			return err
 		}
@@ -678,24 +678,24 @@ func (cmd *Command) Interpret(env *Env) error {
 			break
 		default:
 			msg := fmt.Sprintf("Value of expression: %s is not an integer", stringify(rep))
-			return &RunError{cmd.head.oper.Line, cmd.head.oper.Start, msg}
+			return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, msg}
 		}
-		if cmd.body[1] == nil {
+		if cmd.Body[1] == nil {
 			return nil
 		}
 
 		l_env := Env{}
 		l_env.Init(env)
 		idx_name := ""
-		if cmd.body[0] != nil {
-			err := cmd.body[0].Interpret(&l_env)
+		if cmd.Body[0] != nil {
+			err := cmd.Body[0].Interpret(&l_env)
 			if err != nil {
 				return err
 			}
-			idx_name = cmd.body[0].id
+			idx_name = cmd.Body[0].Id
 		}
 
-		for_block := cmd.body[1]
+		for_block := cmd.Body[1]
 		for range rep.(int) {
 			err := for_block.Interpret(&l_env)
 			if err != nil {
@@ -705,8 +705,8 @@ func (cmd *Command) Interpret(env *Env) error {
 				l_env.Values[idx_name] = l_env.Values[idx_name].(int) + 1
 			}
 		}
-	case while_cmd:
-		cond, err := cmd.head.eval(env)
+	case While_cmd:
+		cond, err := cmd.Head.eval(env)
 		if err != nil {
 			return err
 		}
@@ -715,24 +715,24 @@ func (cmd *Command) Interpret(env *Env) error {
 			break
 		default:
 			msg := fmt.Sprintf("Value of expression: %s is not a boolean", stringify(cond))
-			return &RunError{cmd.head.oper.Line, cmd.head.oper.Start, msg}
+			return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, msg}
 		}
-		if cmd.body[1] == nil {
+		if cmd.Body[1] == nil {
 			return nil
 		}
 
 		l_env := Env{}
 		l_env.Init(env)
 		idx_name := ""
-		if cmd.body[0] != nil {
-			err := cmd.body[0].Interpret(&l_env)
+		if cmd.Body[0] != nil {
+			err := cmd.Body[0].Interpret(&l_env)
 			if err != nil {
 				return err
 			}
-			idx_name = cmd.body[0].id
+			idx_name = cmd.Body[0].Id
 		}
 
-		for_block := cmd.body[1]
+		for_block := cmd.Body[1]
 		for cond.(bool) {
 			err := for_block.Interpret(&l_env)
 			if err != nil {
@@ -741,15 +741,15 @@ func (cmd *Command) Interpret(env *Env) error {
 			if idx_name != "" {
 				l_env.Values[idx_name] = l_env.Values[idx_name].(int) + 1
 			}
-			cond, err = cmd.head.eval(env)
+			cond, err = cmd.Head.eval(env)
 			if err != nil {
 				return err
 			}
 		}
-	case block:
+	case Block:
 		l_env := Env{}
 		l_env.Init(env)
-		for _, c := range cmd.body {
+		for _, c := range cmd.Body {
 			err := c.Interpret(&l_env)
 			if err != nil {
 				return err
@@ -759,16 +759,16 @@ func (cmd *Command) Interpret(env *Env) error {
 	return nil
 }
 func (cmd *Command) Print(in string) {
-	fmt.Printf("%s(%v ", in, cmd.stmt_type)
-	if cmd.stmt_type == vardef_cmd {
-		fmt.Printf("%s, %s", cmd.id, cmd.vtype)
+	fmt.Printf("%s(%v ", in, cmd.Stmt_type)
+	if cmd.Stmt_type == Vardef_cmd {
+		fmt.Printf("%s, %s", cmd.Id, cmd.Vtype)
 	}
-	if cmd.head != nil {
-		fmt.Printf(" Head: %s", cmd.head.print())
+	if cmd.Head != nil {
+		fmt.Printf(" Head: %s", cmd.Head.print())
 	}
-	if len(cmd.body) > 0 {
+	if len(cmd.Body) > 0 {
 		fmt.Print(" Body:\n")
-		for _, b_cmd := range cmd.body {
+		for _, b_cmd := range cmd.Body {
 			if b_cmd == nil {
 				continue
 			}
