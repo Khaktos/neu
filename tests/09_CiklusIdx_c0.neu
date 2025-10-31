@@ -1,0 +1,12 @@
+PROG: ciklus
+NUM: a = 3
+NUM: b = 4
+CIKLUS: a>0, x
+KI: x
+CIKLUS: b>0, x
+KI: x
+b = b-1
+:CIKLUS
+a = a-1
+:CIKLUS
+:PROG

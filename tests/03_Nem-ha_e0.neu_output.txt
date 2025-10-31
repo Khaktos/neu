@@ -1,0 +1,2 @@
+[ERROR] Parsing: Line 2 Column 9: HA tag not closed
+[ERROR] Parsing: Line 4 Column 6: Unrecognized command type: :NEM-HA:

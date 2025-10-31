@@ -1,13 +1,37 @@
+<center>
+<img width=256 src="./neu_logo.png" alt="A stylized green leaf built with geometrical shapes left to the text colon NEU colon" />
+</center>
+
 # Neu language
+![GitHub Release](https://img.shields.io/github/v/release/khaktos/neu?include_prereleases)
+![GitHub License](https://img.shields.io/github/license/khaktos/neu?color=green)
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/khaktos/neu)
+![Static Badge](https://img.shields.io/badge/human%20coded-100%25-green)
+![Trans Rights](https://pride-badges.pony.workers.dev/static/v1?label=trans%20rights&stripeWidth=6&stripeColors=5BCEFA,F5A9B8,FFFFFF,F5A9B8,5BCEFA)
+
 Neu pronounced as in "Neumann" is a programming language for teaching beginners, who speak Hungarian.
 
 It is designed to be a replacement for a learning programming language used in my university.
+
+[Roadmap](https://trello.com/b/1dLB446k/neu-language-roadmap)
 
 > [!IMPORTANT]
 > I am fairly new to go and language design. Code quality may not be up to your standards.
 > My nomenclature and notation may be unconventional, but it is consistent.
 
 ## Using Neu
+
+Windows:
+```
+neu.exe <neu-program>
+```
+
+Linux/Mac
+```console
+./neu <neu-program>
+```
+
+Or if you have go installed:
 ```console
 go run neu.go <neu-program>
 ```
@@ -16,16 +40,13 @@ go run neu.go <neu-program>
 ```console
 go build -o build/neu neu.go
 ```
+No dependencies!
 
 ## Hello world in Neu
 ```
 PROG: hello
     KI: "Hello World"
 :PROG
-```
-
-```console
-neu hello.neu
 ```
 
 ## Motivation
@@ -52,6 +73,19 @@ Example:
 # This is a comment
 ```
 
+### Blocks
+
+Blocks are declared with opening and closing tags. Like `TAG:` and `:TAG`, in special cases you may have `:TAG:` where it both closes the previous block and opens a new one.
+
+Tags can also have certain parameters or variables next to the opening tag. With the `PROG` example, it takes an identifier as the name of the program. This is also how loop variables can be declared.
+
+List of all the block tags are:
+* `PROG` - main function
+* `FN` - function definition (currently not implemented)
+* `ISM` - for loop
+* `CIKLUS` - while loop
+* `HA` - if statement
+
 ### Basic I/O commands
 
 These commands ("one line statements") are used for I/O using the command line and the file system.
@@ -65,25 +99,12 @@ Usage:
 BE: foo
 ```
 
-Multiple things can be printed or read in using a `,` (comma) to separate them. (This is currently not supported)
+Multiple things can be printed or read in using a `,` (comma) to separate them.
 
 Usage:
 ```
 KI: "My number is:", 10
 ```
-
-### Blocks
-
-Blocks are declared with opening and closing tags. Like `TAG:` and `:TAG`, in special cases you may have `:TAG:` where it both closes the previous block and opens a new one.
-
-Tags can also have certain parameters or variables next to the opening tag. With the `PROG` example, it takes an identifier as the name of the program. This is also how loop variables can be declared.
-
-List of all the block tags are:
-* `PROG` - main function
-* `FN` - function definition (currently not implemented)
-* `ISM` - for loop
-* `CIKLUS` - while loop
-* `HA` - if statement
 
 ### Variables
 
@@ -165,7 +186,7 @@ ISM: 4
 :ISM
 
 # Indexing variable
-ISM: 10 idx
+ISM: 10, idx
   KI: "this has appeared ", idx, " times previously"
 :ISM
 ```
@@ -176,24 +197,24 @@ This is used for repeating a set of instructions until a condition is still true
 
 Example:
 ```
-# NUM: foo
+NUM: foo = 0
 
 CIKLUS: foo<10
   KI: "This will print many times"
-  foo = foo-1
+  foo = foo+1
 :CIKLUS
 
-# NUM: bar
+NUM: bar = 0
 
-CIKLUS: bar<10 idx
+CIKLUS: bar<10, idx
   KI: "This has appeared", idx, " times previously"
-  bar = bar-1
+  bar = bar+1
 :CIKLUS
 ```
 
 ### File handling
 
-**TODO**
+**TODO (version 1)**
 
 Files have to be declared with a valid path as string.
 ```
@@ -222,7 +243,7 @@ FILE: myfile = "foo.txt"
 TXT: line
 
 myfile BE: line
-CIKLUS: line != SEMMI idx
+CIKLUS: line != SEMMI, idx
   KI: "line num: ", idx
   KI: line
   myfile BE: line
@@ -232,11 +253,40 @@ myfile KI: SEMMI
 
 ### Lists
 
-**TODO**
+**TODO (version 1)**
+
+Lists are defined using the `LIST` type and in square brackets the type they will contain. Lists are static in size and this has to be indicated in the definition. Multidimensional arrays are possible by creating a list of lists (of lists...). Default values are left uninitialized for each element (see: `SEMMI`)
+
+Examples:
+```
+# List of ten names
+LIST[TXT]: names[10]
+
+# 2x2 matrix
+LIST[LIST[NUM]]: matrix[2][2]
+```
+
+Accessing an element of a list is done using its identifier and square brackets. Lists are zero indexed
+
+```
+KI: "First name in list:", names[0]
+```
+
+List definition also allows the usage of variables/expressions to determine the size of the list
+
+```
+NUM: dimension = 0
+BE: dimension
+LIST[NUM]: vector[dimension]
+
+ISM: dimension, idx
+  KI: idx, vector[idx]
+:ISM
+```
 
 ### Functions
 
-**TODO**
+**TODO (version 2)**
 
 Functions are declared using the `FN` tag. Followed by their name, function parameters in parenthesis separated with a comma, an equals sign and the return type. Implicit returns can also be done if a variable is declared after the equals sign. Functions with no returns (void functions, procedures) can omit the equals sign and return, or can return a `SEMMI`.
 

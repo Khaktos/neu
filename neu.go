@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -10,26 +11,29 @@ import (
 )
 
 func main() {
+
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage of neu:\n\tneu <options> <neu program>\nOptions:\n")
+		flag.PrintDefaults()
+	}
+	debug_flag := flag.Bool("d", false, "Debug mode")
+
 	had_error := false
-	debug_mode := false
-	args := os.Args[1:]
+	flag.Parse()
+	args := flag.Args()
 	if len(args) == 0 {
 		fmt.Println("Please provide a .neu file as input")
 		os.Exit(64)
 	}
 	var file *os.File
 	var err error
+
 	if len(args) == 1 {
 		file, err = os.Open(args[0])
 	}
-	if len(args) == 2 {
-		if args[0] == "-d" {
-			debug_mode = true
-		}
-		file, err = os.Open(args[1])
-	}
-	if len(args) > 2 {
+	if len(args) > 1 {
 		fmt.Println("Multiple arguments passed. This is currently unsupported.")
+		os.Exit(1)
 	}
 	if err != nil {
 		panic(err)
@@ -56,7 +60,6 @@ func main() {
 		}
 		tokens = append(tokens, line_tokens...)
 	}
-	tokens = tokens[:len(tokens)-1]
 	tokens = append(tokens, neu.Token{Token_type: neu.Eof, Lexeme: "EOF", Literal: nil, Line: len(lines) + 1})
 
 	if had_error {
@@ -65,14 +68,26 @@ func main() {
 		}
 		os.Exit(1)
 	}
-	if debug_mode {
-		fmt.Println("Debug info:\n-------------")
-		for _, tok := range tokens {
-			fmt.Printf("%+v\n", tok)
+	if *debug_flag {
+		fmt.Println("-------------\nDebug info:")
+		fmt.Println("\nLexer output:")
+		for i, tok := range tokens {
+			fmt.Printf("%d: %+v\n", i, tok)
 		}
 	}
 
 	//parsing
+	tokens, pperr := neu.Pre_parse(tokens)
+	if pperr != nil {
+		fmt.Fprintln(os.Stderr, pperr)
+		os.Exit(1)
+	}
+	if *debug_flag {
+		fmt.Println("\nPre parsing:")
+		for i, tok := range tokens {
+			fmt.Printf("%d: %+v\n", i, tok)
+		}
+	}
 	program, perr := neu.Parser(tokens)
 	if len(perr) != 0 {
 		for _, v := range perr {
@@ -80,12 +95,16 @@ func main() {
 		}
 		os.Exit(1)
 	}
-	if debug_mode {
-		program.Print()
+	if *debug_flag {
+		fmt.Println("\nParser output:")
+		program.Print("")
 		fmt.Println()
 		fmt.Println("------------")
 	}
 
 	//running
-	program.Interpret(nil)
+	err = program.Interpret(nil)
+	if err != nil {
+		fmt.Fprint(os.Stderr, err)
+	}
 }

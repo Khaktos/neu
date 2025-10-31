@@ -1,0 +1,5 @@
+PROG: expressions
+
+NUM: a = 10 <
+
+:PROG

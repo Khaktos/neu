@@ -1,0 +1,7 @@
+PROG: expressions
+
+NUM: a = 10
+
+KI: a AND IGAZ
+
+:PROG

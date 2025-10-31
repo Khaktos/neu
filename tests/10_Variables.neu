@@ -1,0 +1,19 @@
+PROG: variables
+NUM: a
+TXT: b
+KAR: c
+LOG: d
+
+KI: a, b, c, d
+
+a = 10
+b = "hello"
+c = '~'
+d = IGAZ
+
+KI: a, b, c, d
+
+NUM: f = 34.12
+KI: f
+
+:PROG

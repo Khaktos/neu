@@ -13,6 +13,7 @@ type TokenType int
 const (
 	Eof TokenType = iota
 	Nl
+	Colon
 
 	L_paren
 	R_paren
@@ -51,6 +52,13 @@ const (
 	And
 	Or
 
+	Main
+	If
+	Elif
+	Else
+	While
+	For
+
 	St_main
 	Ed_main
 	St_if
@@ -61,6 +69,9 @@ const (
 	Ed_while
 	St_for
 	Ed_for
+
+	Print
+	Read
 
 	C_print
 	C_read
@@ -77,6 +88,8 @@ func (t TokenType) String() string {
 		return "<EOF>"
 	case Nl:
 		return "<NL>"
+	case Colon:
+		return "<COLON>"
 
 	case L_paren:
 		return "<L-PAR>"
@@ -146,6 +159,19 @@ func (t TokenType) String() string {
 	case Or:
 		return "<OR>"
 
+	case Main:
+		return "<PROG>"
+	case If:
+		return "<IF>"
+	case Elif:
+		return "<ELIF>"
+	case Else:
+		return "<ELSE>"
+	case While:
+		return "<WHILE>"
+	case For:
+		return "<FOR>"
+
 	case St_main:
 		return "<PROG-ST>"
 	case Ed_main:
@@ -155,9 +181,9 @@ func (t TokenType) String() string {
 	case Ed_if:
 		return "<IF-ED>"
 	case St_elif:
-		return "<ELIF>"
+		return "<ELIF-ST>"
 	case St_else:
-		return "<ELSE>"
+		return "<ELSE-ST>"
 	case St_while:
 		return "<WHILE-ST>"
 	case Ed_while:
@@ -167,10 +193,15 @@ func (t TokenType) String() string {
 	case Ed_for:
 		return "<FOR-ED>"
 
-	case C_print:
+	case Print:
 		return "<PRINT>"
-	case C_read:
+	case Read:
 		return "<READ>"
+
+	case C_print:
+		return "<PRINT-C>"
+	case C_read:
+		return "<READ-C>"
 
 	case Lit_true:
 		return "<LIT-TRUE>"
@@ -193,29 +224,26 @@ type Token struct {
 }
 
 var keywords = map[string]TokenType{
-	"PROG:":    St_main,
-	":PROG":    Ed_main,
-	"HA:":      St_if,
-	":HA":      Ed_if,
-	":DE-HA:":  St_elif,
-	":NEM-HA:": St_else,
-	"CIKLUS:":  St_while,
-	":CIKLUS":  Ed_while,
-	"ISM:":     St_for,
-	":ISM":     Ed_for,
-	"NOT":      Not,
-	"AND":      And,
-	"OR":       Or,
-	"NUM:":     Type_num,
-	"TXT:":     Type_str,
-	"LOG:":     Type_bool,
-	"KAR:":     Type_char,
-	"FILE:":    Type_file,
-	"KI:":      C_print,
-	"BE:":      C_read,
-	"IGAZ":     Lit_true,
-	"HAMIS":    Lit_false,
-	"SEMMI":    Nul,
+	"PROG":   Main,
+	"HA":     If,
+	"DE-HA":  Elif,
+	"NEM-HA": Else,
+	"CIKLUS": While,
+	"ISM":    For,
+	"NOT":    Not,
+	"AND":    And,
+	"OR":     Or,
+	"NUM":    Type_num,
+	"TXT":    Type_str,
+	"LOG":    Type_bool,
+	"KAR":    Type_char,
+	"LIST":   Type_list,
+	"FILE":   Type_file,
+	"KI":     Print,
+	"BE":     Read,
+	"IGAZ":   Lit_true,
+	"HAMIS":  Lit_false,
+	"SEMMI":  Nul,
 }
 
 type LexError struct {
@@ -225,7 +253,7 @@ type LexError struct {
 }
 
 func (e *LexError) Error() string {
-	return fmt.Sprintf("[ERROR] Scanning Line %d Column %d: %s", e.pos, e.line, e.msg)
+	return fmt.Sprintf("[ERROR] Scanning: Line %d Column %d: %s", e.line, e.pos, e.msg)
 }
 
 func next_match(line, check string, end *int) bool {
@@ -270,7 +298,7 @@ func match_number(line string, end *int) (string, bool, int) {
 		*end = len(runes)
 		return string(digits), true, -1
 	}
-	endindgs := []rune{' ', '+', '-', '*', '/', '%', ')', '<', '>', '=', '!'}
+	endindgs := []rune{' ', '+', '-', '*', '/', '%', ')', '<', '>', '=', '!', ','}
 	if slices.Contains(endindgs, runes[endval]) {
 		*end = endval - 1
 		return string(digits), true, -1
@@ -292,30 +320,20 @@ func match_number(line string, end *int) (string, bool, int) {
 
 func is_name_char(char rune) bool {
 	others := []rune{'-', '_', '?'}
-	return unicode.IsLetter(char) || unicode.IsDigit(char) || slices.Contains(others, char)
+	return (unicode.IsLetter(char) || unicode.IsDigit(char) || slices.Contains(others, char)) && (char < 128)
 }
 
 func is_id_char(char rune) bool {
 	others := []rune{'_', '?'}
-	return unicode.IsLetter(char) || unicode.IsDigit(char) || slices.Contains(others, char)
+	return (unicode.IsLetter(char) || unicode.IsDigit(char) || slices.Contains(others, char)) && (char < 128)
 }
 
 func match_identifier(line string, end *int) (string, TokenType) {
 	runes := []rune(line)
 	var acc []rune
 	endval := *end
-	if runes[endval] == ':' {
-		acc = append(acc, ':')
-		endval++
-	}
 	for ; endval < len(runes) && is_name_char(runes[endval]); endval++ {
 		acc = append(acc, runes[endval])
-	}
-	if endval < len(runes) {
-		if runes[endval] == ':' {
-			acc = append(acc, ':')
-			endval++
-		}
 	}
 	token_type, keyword := keywords[string(acc)]
 	if !keyword {
@@ -333,8 +351,9 @@ func match_identifier(line string, end *int) (string, TokenType) {
 func Lexer(line string, line_num int) ([]Token, []error) {
 	var tokens []Token
 	var err []error
-	for current := 0; current < len(line); current++ {
-		char := []rune(line)[current]
+	line_chr := []rune(line)
+	for current := 0; current < len(line_chr); current++ {
+		char := line_chr[current]
 		var c_token Token
 		if char == ' ' {
 			continue
@@ -399,6 +418,9 @@ func Lexer(line string, line_num int) ([]Token, []error) {
 			//comment
 			// ignore the rest of the characters
 			current = len(line)
+		case ':':
+			c_token = Token{Colon, ":", nil, line_num, current}
+
 		//string/char literals
 		case '"':
 			value, e := match_until(line, "\"", &current)
@@ -414,7 +436,7 @@ func Lexer(line string, line_num int) ([]Token, []error) {
 				err = append(err, &LexError{line_num, current, "Unterminated character. Missing a: '"})
 				continue
 			}
-			if len(value) > 1 {
+			if len(value) > 1 || len(value) == 0 {
 				err = append(err, &LexError{line_num, current, "Not a character: " + value})
 				continue
 			}
@@ -446,7 +468,7 @@ func Lexer(line string, line_num int) ([]Token, []error) {
 					}
 					c_token = Token{Lit_num, value, num, line_num, current}
 				}
-			} else if unicode.IsLetter(char) || char == ':' {
+			} else if unicode.IsLetter(char) && char < 128 {
 				value, token_type := match_identifier(line, &current)
 				if token_type == Lit_true || token_type == Lit_false {
 					c_token = Token{token_type, value, token_type == Lit_true, line_num, current}

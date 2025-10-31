@@ -1,0 +1,8 @@
+PROG: expressions
+
+NUM: a = 10
+NUM: b = 2
+
+KI: a < b < a
+
+:PROG

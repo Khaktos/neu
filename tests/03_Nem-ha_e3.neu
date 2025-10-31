@@ -1,0 +1,5 @@
+PROG: nemha
+HA: HAMIS
+KI: HAMIS
+:NEM-HA: KI: IGAZ :HA
+:PROG

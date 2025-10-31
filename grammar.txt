@@ -1,19 +1,19 @@
-program ::= "PROG:" identifier "\n" commands ":PROG"
+program ::= "PROG" ":" identifier "\n" commands ":" "PROG"
 
 commands ::= (command "\n")*
 command ::= value | branch | loop | io | declaration
 
 value ::= identifier "=" expression
 
-branch ::= "HA:" expression "\n" commands (":DE-HA:" commands)* (":NEM-HA:" commands)? ":HA"
+branch ::= "HA" ":" expression "\n" commands (":" "DE-HA" ":" commands)* (":" "NEM-HA" ":" commands)? ":" "HA"
 
 loop ::= condition-loop | counter-loop
 
-condition-loop ::= "CIKLUS:" expression (identifier)? "\n" commands ":CIKLUS"
+condition-loop ::= "CIKLUS" ":" expression ("," identifier)? "\n" commands ":" "CIKLUS"
 
-counter-loop ::= "ISM:" expression (identifier)? "\n" commands ":ISM"
+counter-loop ::= "ISM" ":" expression ("," identifier)? "\n" commands ":" "ISM"
 
-io ::= (identifier)? ("KI:" expression ("," expression)* | "BE:" identifier ("," identifier)*)
+io ::= ("KI" ":" expression ("," expression)*) | ("BE" ":" identifier)
 
 expression ::= equality (("AND" | "OR") equality)*
 equality ::= comparison (("==" | "!=") comparison)*
@@ -26,5 +26,5 @@ primary ::= NUMBER | STRING | CHAR | "IGAZ" | "HAMIS" | "SEMMI" | "(" expression
 identifier ::= [A-z] (idchar)*
 idchar ::= [A-z] | [0-9] | "_" | "?"
 
-declaration ::= type identifier ("=" expression)?
-type ::= "NUM:" | "TXT:" | "KAR:" | "LOG:" | "FILE:" | "LIST:" | "NUM-E:" | "NUM-T:"
+declaration ::= type ":" identifier ("=" expression)?
+type ::= "NUM" | "TXT" | "KAR" | "LOG"
