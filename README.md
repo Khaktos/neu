@@ -1,4 +1,14 @@
+<center>
+<img width=256 src="./neu_logo.png" alt="A stylized green leaf built with geometrical shapes left to the text colon NEU colon" />
+</center>
+
 # Neu language
+![GitHub Release](https://img.shields.io/github/v/release/khaktos/neu?include_prereleases)
+![GitHub License](https://img.shields.io/github/license/khaktos/neu?color=green)
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/khaktos/neu)
+![Static Badge](https://img.shields.io/badge/human%20coded-100%25-green)
+![Trans Rights](https://pride-badges.pony.workers.dev/static/v1?label=trans%20rights&stripeWidth=6&stripeColors=5BCEFA,F5A9B8,FFFFFF,F5A9B8,5BCEFA)
+
 Neu pronounced as in "Neumann" is a programming language for teaching beginners, who speak Hungarian.
 
 It is designed to be a replacement for a learning programming language used in my university.
