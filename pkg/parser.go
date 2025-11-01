@@ -108,6 +108,13 @@ var BaseStr = ValueType{Str_type, nil}
 var BaseBool = ValueType{Bool_type, nil}
 var BaseChar = ValueType{Char_type, nil}
 
+var token_to_type = map[TokenType]ValueType{
+	Type_num:  BaseNum,
+	Type_str:  BaseStr,
+	Type_bool: BaseBool,
+	Type_char: BaseChar,
+}
+
 type Variable struct {
 	Id      string
 	Valtype ValueType
@@ -507,6 +514,33 @@ func parse_command(tokens []Token, current *int) (*Command, error) {
 			return nil, err
 		}
 	}
+	//list declaration
+	if match_token(tokens, current, Type_list) {
+		elem_type, err := parse_list_type(tokens, current)
+		curr_type := ValueType{List_type, []ValueType{elem_type}}
+		if err != nil {
+			return nil, err
+		}
+		fmt.Println(tokens[*current])
+		if !match_token_seq(tokens, current, []TokenType{Colon, Identifier, L_brace}) {
+			err = &ParseError{tokens[*current].Line, tokens[*current].Start, "Syntax error in list declaration a"}
+			sync_to_next_cmd(tokens, current)
+			return nil, err
+		}
+		id := tokens[*current-2].Lexeme
+		size, err := parse_expression(tokens, current)
+		if err != nil {
+			sync_to_next_cmd(tokens, current)
+			return nil, err
+		}
+		if !match_token(tokens, current, R_brace) {
+			err = &ParseError{tokens[*current].Line, tokens[*current].Start, "Syntax error in list declaration"}
+			sync_to_next_cmd(tokens, current)
+			return nil, err
+		}
+		return &Command{Vardef_cmd, size, nil, Variable{id, curr_type}}, nil
+	}
+
 	//assignment
 	// if match_token_seq(tokens, current, []TokenType{Identifier, Equal}) {
 	// 	id := tokens[*current-2].Lexeme
@@ -582,6 +616,31 @@ func parse_command(tokens []Token, current *int) (*Command, error) {
 	// 	}
 	// 	return &Command{Expr_cmd, head, nil, "", Nul}, nil
 	// }
+}
+
+func parse_list_type(tokens []Token, current *int) (ValueType, error) {
+	elem_type := ValueType{List_type, []ValueType{}}
+	if !match_token(tokens, current, L_brace) {
+		err := &ParseError{tokens[*current].Line, tokens[*current].Start, "'[' expected"}
+		return ValueType{}, err
+	}
+	if match_token(tokens, current, Type_list) {
+		el, err := parse_list_type(tokens, current)
+		if err != nil {
+			return ValueType{}, err
+		}
+		elem_type.SubType = append(elem_type.SubType, el)
+	} else if match_token(tokens, current, Type_bool, Type_char, Type_num, Type_str) {
+		elem_type.SubType = append(elem_type.SubType, token_to_type[tokens[*current-1].Token_type])
+	} else {
+		err := &ParseError{tokens[*current].Line, tokens[*current].Start, "Unsupported type for list elements"}
+		return ValueType{}, err
+	}
+	if !match_token(tokens, current, R_brace) {
+		err := &ParseError{tokens[*current].Line, tokens[*current].Start, "']' expected"}
+		return ValueType{}, err
+	}
+	return elem_type, nil
 }
 
 func sync_to_next_cmd(tokens []Token, current *int) {

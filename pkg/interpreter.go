@@ -129,14 +129,15 @@ func unwrap_type(left, right any) (ltype, rtype string) {
 }
 
 func eval_unary(value any, oper Token) (any, error) {
-	if oper.Token_type == Not {
+	switch oper.Token_type {
+	case Not:
 		switch v := value.(type) {
 		case bool:
 			return !v, nil
 		default:
 			return nil, &RunError{oper.Line, oper.Start, "Boolean expected"}
 		}
-	} else if oper.Token_type == Minus {
+	case Minus:
 		switch v := value.(type) {
 		case int:
 			return -v, nil
@@ -145,7 +146,7 @@ func eval_unary(value any, oper Token) (any, error) {
 		default:
 			return nil, &RunError{oper.Line, oper.Start, "Number expected"}
 		}
-	} else {
+	default:
 		panic("Error in unary evaluation!")
 	}
 }
