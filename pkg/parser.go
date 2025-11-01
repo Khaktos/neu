@@ -516,8 +516,7 @@ func parse_command(tokens []Token, current *int) (*Command, error) {
 	}
 	//list declaration
 	if match_token(tokens, current, Type_list) {
-		elem_type, err := parse_list_type(tokens, current)
-		curr_type := ValueType{List_type, []ValueType{elem_type}}
+		curr_type, err := parse_list_type(tokens, current)
 		if err != nil {
 			return nil, err
 		}
@@ -536,6 +535,10 @@ func parse_command(tokens []Token, current *int) (*Command, error) {
 		if !match_token(tokens, current, R_brace) {
 			err = &ParseError{tokens[*current].Line, tokens[*current].Start, "Syntax error in list declaration"}
 			sync_to_next_cmd(tokens, current)
+			return nil, err
+		}
+		err = expect_nl(tokens, current)
+		if err != nil {
 			return nil, err
 		}
 		return &Command{Vardef_cmd, size, nil, Variable{id, curr_type}}, nil
@@ -655,19 +658,23 @@ func sync_to_next_cmd(tokens []Token, current *int) {
 
 func Pre_parse(tokens []Token) ([]Token, error) {
 	var new_tokens []Token
+	skip := false
 	for idx, token := range tokens {
+		if skip {
+			skip = false
+			continue
+		}
 		prev_colon := tokens[max(idx-1, 0)].Token_type == Colon
 		next_colon := tokens[min(idx+1, len(tokens)-1)].Token_type == Colon
-		include := false
 		curr := token
 		err := &ParseError{curr.Line, curr.Start, "Tag not opened or closed"}
 		switch token.Token_type {
-		case Colon:
-			continue
 		case Main:
 			if next_colon {
 				curr = Token{St_main, "PROG:", nil, curr.Line, curr.Start}
+				skip = true
 			} else if prev_colon {
+				new_tokens = new_tokens[:len(new_tokens)-1]
 				curr = Token{Ed_main, ":PROG", nil, curr.Line, curr.Start - 1}
 			} else {
 				return nil, err
@@ -675,27 +682,35 @@ func Pre_parse(tokens []Token) ([]Token, error) {
 		case If:
 			if next_colon {
 				curr = Token{St_if, "HA:", nil, curr.Line, curr.Start}
+				skip = true
 			} else if prev_colon {
+				new_tokens = new_tokens[:len(new_tokens)-1]
 				curr = Token{Ed_if, ":HA", nil, curr.Line, curr.Start - 1}
 			} else {
 				return nil, err
 			}
 		case Elif:
 			if next_colon && prev_colon {
+				new_tokens = new_tokens[:len(new_tokens)-1]
 				curr = Token{St_elif, ":DE-HA:", nil, curr.Line, curr.Start - 1}
+				skip = true
 			} else {
 				return nil, err
 			}
 		case Else:
 			if next_colon && prev_colon {
+				new_tokens = new_tokens[:len(new_tokens)-1]
 				curr = Token{St_else, ":NEM-HA:", nil, curr.Line, curr.Start - 1}
+				skip = true
 			} else {
 				return nil, err
 			}
 		case While:
 			if next_colon {
 				curr = Token{St_while, "CIKLUS:", nil, curr.Line, curr.Start}
+				skip = true
 			} else if prev_colon {
+				new_tokens = new_tokens[:len(new_tokens)-1]
 				curr = Token{Ed_while, ":CIKLUS", nil, curr.Line, curr.Start - 1}
 			} else {
 				return nil, err
@@ -703,7 +718,9 @@ func Pre_parse(tokens []Token) ([]Token, error) {
 		case For:
 			if next_colon {
 				curr = Token{St_for, "ISM:", nil, curr.Line, curr.Start}
+				skip = true
 			} else if prev_colon {
+				new_tokens = new_tokens[:len(new_tokens)-1]
 				curr = Token{Ed_for, ":ISM", nil, curr.Line, curr.Start - 1}
 			} else {
 				return nil, err
@@ -711,31 +728,19 @@ func Pre_parse(tokens []Token) ([]Token, error) {
 		case Print:
 			if next_colon {
 				curr = Token{C_print, "KI:", nil, curr.Line, curr.Start}
+				skip = true
 			} else {
 				return nil, err
 			}
 		case Read:
 			if next_colon {
 				curr = Token{C_read, "BE:", nil, curr.Line, curr.Start}
+				skip = true
 			} else {
 				return nil, err
 			}
-		case Type_num:
-			fallthrough
-		case Type_str:
-			fallthrough
-		case Type_bool:
-			fallthrough
-		case Type_char:
-			fallthrough
-		case Type_file:
-			include = next_colon
-
 		}
 		new_tokens = append(new_tokens, curr)
-		if include {
-			new_tokens = append(new_tokens, Token{Colon, ":", nil, curr.Line, curr.Start + 1})
-		}
 	}
 	return new_tokens, nil
 }
