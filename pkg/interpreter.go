@@ -50,17 +50,18 @@ func (e *Env) Put(id string, typ ValueType, val any, line, pos int) error {
 	//the variable exists, check its type
 	if ok {
 		if !isSameType(typ, c_typ) {
-			// print_error(line, pos, "Variable type does not match assigned type")
 			return &RunError{line, pos, "Variable type does not match assigned type"}
 		}
 		e.Values[id] = val
 		// variable does not exist, check parent if exists
 	} else {
 		if e.Parent == nil {
-			// print_error(line, pos, "Variable is undeclared")
 			return &RunError{line, pos, "Variable is undeclared"}
 		}
-		e.Parent.Put(id, typ, val, line, pos)
+		err := e.Parent.Put(id, typ, val, line, pos)
+		if err != nil {
+			return err
+		}
 
 	}
 	return nil
@@ -71,7 +72,6 @@ func (e *Env) Get(id string, line, pos int) (any, error) {
 		if e.Parent != nil {
 			return e.Parent.Get(id, line, pos)
 		} else {
-			// print_error(line, pos, "Variable is undeclared")
 			return nil, &RunError{line, pos, "Variable is undeclared"}
 		}
 	}
@@ -80,7 +80,6 @@ func (e *Env) Get(id string, line, pos int) (any, error) {
 func (e *Env) Get_type(id string, line, pos int) (ValueType, error) {
 	c_typ, ok := e.Types[id]
 	if !ok {
-		// print_error(line, pos, "Variable is undeclared")
 		return ValueType{}, &RunError{line, pos, "Variable is undeclared"}
 	}
 	return c_typ, nil
@@ -475,6 +474,12 @@ func eval_binary(lval, rval any, oper Token) (any, error) {
 			return nil, &RunError{oper.Line, oper.Start, "Right hand value must be integer"}
 		}
 		return nil, &RunError{oper.Line, oper.Start, "Something went wrong in type checking"}
+	case L_brace:
+		if rtype == "nul" {
+			return nil, &RunError{oper.Line, oper.Start, "Index cannot be SEMMI"}
+		}
+		fmt.Println(lval)
+		return nil, &RunError{oper.Line, oper.Start, "INDEXING"}
 	default:
 		panic("Error in binary evaluation!")
 	}
@@ -493,7 +498,11 @@ func (node *TreeNode) eval(env *Env) (any, error) {
 	case 0:
 		if node.Oper.Token_type == Identifier {
 			//variable
-			return env.Get(node.Oper.Lexeme, node.Oper.Line, node.Oper.Start)
+			ret, err := env.Get(node.Oper.Lexeme, node.Oper.Line, node.Oper.Start)
+			if err != nil {
+				return nil, err
+			}
+			return ret, nil
 		} else {
 			//literal
 			return node.Oper.Literal, nil
@@ -604,7 +613,10 @@ func do_read(env *Env, cmd *Command) error {
 		val = text
 	}
 
-	env.Put(cmd.Head.Oper.Lexeme, valtype, val, cmd.Head.Oper.Line, cmd.Head.Oper.Start)
+	err = env.Put(cmd.Head.Oper.Lexeme, valtype, val, cmd.Head.Oper.Line, cmd.Head.Oper.Start)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -647,7 +659,33 @@ func (cmd *Command) Interpret(env *Env) error {
 			default:
 				etype = ValueType{}
 			}
-			env.Put(cmd.Def.Id, etype, val, cmd.Head.Oper.Line, 0)
+			if len(cmd.Body) > 0 {
+				for _, c := range cmd.Body {
+					ix, err := c.Head.eval(env)
+					if err != nil {
+						return err
+					}
+					idx, ok := ix.(int)
+					if !ok {
+						return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, "Indexing variable must be integer"}
+					}
+					pv, err := env.Get(cmd.Def.Id, cmd.Head.Oper.Line, cmd.Head.Oper.Start)
+					if err != nil {
+						return err
+					}
+					prev, ok := pv.([]any)
+					if !ok {
+						panic("Something went wrong in list element assignment")
+					}
+					prev[idx] = val
+					env.Put(cmd.Def.Id, cmd.Def.Valtype, prev, cmd.Head.Oper.Line, cmd.Head.Oper.Start)
+				}
+			} else {
+				err = env.Put(cmd.Def.Id, etype, val, cmd.Head.Oper.Line, 0)
+			}
+			if err != nil {
+				return err
+			}
 		}
 	case Prog_cmd:
 		g_env := Env{}
@@ -774,13 +812,31 @@ func (cmd *Command) Interpret(env *Env) error {
 				return err
 			}
 		}
+	case Listdef_cmd:
+		s, err := cmd.Head.eval(env)
+		if err != nil {
+			return err
+		}
+		size, ok := s.(int)
+		if !ok {
+			return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, "List size is not an integer"}
+		}
+		list := make([]any, size)
+		env.Define(cmd.Def.Id, cmd.Def.Valtype)
+		env.Put(cmd.Def.Id, cmd.Def.Valtype, list, cmd.Head.Oper.Line, 0)
+	default:
+		fmt.Println("New command with undefined behavior:")
+		cmd.Print("  >  ")
 	}
 	return nil
 }
 func (cmd *Command) Print(in string) {
 	fmt.Printf("%s(%v ", in, cmd.Stmt_type)
-	if cmd.Stmt_type == Vardef_cmd {
+	if cmd.Stmt_type == Vardef_cmd || cmd.Stmt_type == Listdef_cmd {
 		fmt.Printf("%s, %s", cmd.Def.Id, cmd.Def.Valtype)
+	}
+	if cmd.Stmt_type == Assign_cmd {
+		fmt.Printf("%s,", cmd.Def.Id)
 	}
 	if cmd.Head != nil {
 		fmt.Printf(" Head: %s", cmd.Head.print())

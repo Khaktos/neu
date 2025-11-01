@@ -24,8 +24,9 @@ const (
 	Print_cmd
 	Read_cmd
 	Vardef_cmd
+	Listdef_cmd
 	Assign_cmd
-	List_cmd
+	Index_cmd
 	If_cmd
 	For_cmd
 	While_cmd
@@ -51,9 +52,13 @@ func (c CommandType) String() string {
 	case Read_cmd:
 		return "<READ>"
 	case Vardef_cmd:
-		return "<V-DEF>"
+		return "<VAR-DEF>"
+	case Listdef_cmd:
+		return "<LIST-DEF>"
 	case Assign_cmd:
 		return "<ASSIGN>"
+	case Index_cmd:
+		return "<INDEX>"
 	case If_cmd:
 		return "<IF>"
 	case For_cmd:
@@ -520,7 +525,6 @@ func parse_command(tokens []Token, current *int) (*Command, error) {
 		if err != nil {
 			return nil, err
 		}
-		fmt.Println(tokens[*current])
 		if !match_token_seq(tokens, current, []TokenType{Colon, Identifier, L_brace}) {
 			err = &ParseError{tokens[*current].Line, tokens[*current].Start, "Syntax error in list declaration a"}
 			sync_to_next_cmd(tokens, current)
@@ -541,7 +545,7 @@ func parse_command(tokens []Token, current *int) (*Command, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &Command{Vardef_cmd, size, nil, Variable{id, curr_type}}, nil
+		return &Command{Listdef_cmd, size, nil, Variable{id, curr_type}}, nil
 	}
 
 	//assignment
@@ -574,11 +578,17 @@ func parse_command(tokens []Token, current *int) (*Command, error) {
 		if err != nil {
 			return nil, err
 		}
-
-		// &Command{List_cmd, head, nil, indexed.Oper.Left.Lexeme, Nul}, nil
+		switch indexed.Oper.Token_type {
+		case Identifier:
+			return &Command{Assign_cmd, head, nil, Variable{indexed.Oper.Lexeme, ValueType{}}}, nil
+		case L_brace:
+			return &Command{Assign_cmd, head, []*Command{
+				{Index_cmd, indexed.Right, nil, NoVar},
+			}, Variable{indexed.Left.Oper.Lexeme, ValueType{}}}, nil
+		}
+		// &Command{List_cmd, head, nil, Variable{indexed.Oper.Left.Lexeme, ValueType{}}}, nil
 		// this is jank AF
 		// different assignment thing is needed in the interpretation part
-		return &Command{Assign_cmd, head, nil, Variable{indexed.Oper.Lexeme, ValueType{}}}, nil
 	}
 	//if
 	if match_token(tokens, current, St_if) {
