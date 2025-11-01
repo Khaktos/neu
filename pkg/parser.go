@@ -17,6 +17,7 @@ type TreeNode struct {
 }
 
 type CommandType int
+type BaseValueType int
 
 const (
 	Prog_cmd CommandType = iota
@@ -24,11 +25,21 @@ const (
 	Read_cmd
 	Vardef_cmd
 	Assign_cmd
+	List_cmd
 	If_cmd
 	For_cmd
 	While_cmd
 	Block
 	Expr_cmd
+)
+
+const (
+	Nul_type BaseValueType = iota
+	Num_type
+	Str_type
+	Bool_type
+	Char_type
+	List_type
 )
 
 func (c CommandType) String() string {
@@ -62,8 +73,44 @@ type Command struct {
 	Stmt_type CommandType
 	Head      *TreeNode
 	Body      []*Command
-	Id        string
-	Vtype     TokenType
+	Def       Variable
+}
+
+var NoVar = Variable{}
+
+type ValueType struct {
+	BaseType BaseValueType
+	SubType  []ValueType
+}
+
+func (v ValueType) String() string {
+	switch v.BaseType {
+	case Nul_type:
+		return "NIL_T"
+	case Num_type:
+		return "NUM_T"
+	case Str_type:
+		return "STR_T"
+	case Bool_type:
+		return "BOOL_T"
+	case Char_type:
+		return "CHAR_T"
+	case List_type:
+		return "LIST_T[" + v.SubType[0].String() + "]"
+	default:
+		return fmt.Sprintf("%d", v.BaseType)
+	}
+}
+
+// Base types
+var BaseNum = ValueType{Num_type, nil}
+var BaseStr = ValueType{Str_type, nil}
+var BaseBool = ValueType{Bool_type, nil}
+var BaseChar = ValueType{Char_type, nil}
+
+type Variable struct {
+	Id      string
+	Valtype ValueType
 }
 
 type ParseError struct {
@@ -130,8 +177,34 @@ func find_last(tokens []Token, typ TokenType) int {
 	return -1
 }
 
+// TODO: add support for multi dimension arrays
+func parse_indexing(tokens []Token, current *int) (*TreeNode, error) {
+	ident := tokens[*current-1]
+	ret := &TreeNode{Oper: ident}
+	if match_token(tokens, current, L_brace) {
+		brace := tokens[*current-1]
+		expr, err := parse_expression(tokens, current)
+		if err != nil {
+			return nil, err
+		}
+		if match_token(tokens, current, R_brace) {
+			return &TreeNode{Left: ret, Oper: brace, Right: expr}, nil
+		} else {
+			return nil, &ParseError{brace.Line, brace.Start, "Unclosed indexing"}
+		}
+	}
+	return ret, nil
+}
+
 func parse_primary(tokens []Token, current *int) (*TreeNode, error) {
-	if match_token(tokens, current, Lit_false, Lit_true, Lit_char, Lit_num, Lit_str, Nul, Identifier) {
+	if match_token(tokens, current, Identifier) {
+		indexed, err := parse_indexing(tokens, current)
+		if err != nil {
+			return nil, err
+		}
+		return indexed, nil
+	}
+	if match_token(tokens, current, Lit_false, Lit_true, Lit_char, Lit_num, Lit_str, Nul) {
 		literal := tokens[*current-1]
 		return &TreeNode{Oper: literal}, nil
 	}
@@ -237,7 +310,7 @@ func parse_block(tokens []Token, current *int, closers ...TokenType) (*Command, 
 		}
 		body = append(body, cmd)
 	}
-	return &Command{Block, nil, body, "", Nul}, nil
+	return &Command{Block, nil, body, NoVar}, nil
 }
 
 func parse_if(tokens []Token, current *int) (*Command, error) {
@@ -299,7 +372,7 @@ func parse_if(tokens []Token, current *int) (*Command, error) {
 	}
 	body := []*Command{true_cmd, false_cmd}
 
-	return &Command{If_cmd, head, body, "", Nul}, nil
+	return &Command{If_cmd, head, body, NoVar}, nil
 }
 
 func parse_loop(tokens []Token, current *int, loop_type CommandType) (*Command, error) {
@@ -329,7 +402,7 @@ func parse_loop(tokens []Token, current *int, loop_type CommandType) (*Command, 
 			// set value to zero
 			idx_par := Token{Lit_num, "<IDX-PAR>", 0, tokens[*current].Line, tokens[*current].Start + 1}
 			idx_literal := &TreeNode{Oper: idx_par}
-			idx_def = &Command{Vardef_cmd, idx_literal, nil, tokens[*current-1].Lexeme, Type_num}
+			idx_def = &Command{Vardef_cmd, idx_literal, nil, Variable{tokens[*current-1].Lexeme, BaseNum}}
 		} else {
 			return nil, &ParseError{tokens[*current].Line, tokens[*current].Start, "Expected indexing variable"}
 		}
@@ -351,7 +424,7 @@ func parse_loop(tokens []Token, current *int, loop_type CommandType) (*Command, 
 	body = append(body, idx_def)
 	body = append(body, loop_block)
 
-	return &Command{loop_type, head, body, "", Nul}, nil
+	return &Command{loop_type, head, body, NoVar}, nil
 }
 
 func parse_print(tokens []Token, current *int) (*Command, error) {
@@ -361,7 +434,7 @@ func parse_print(tokens []Token, current *int) (*Command, error) {
 		return nil, err
 	}
 
-	body = append(body, &Command{Print_cmd, expr, nil, "", Nul})
+	body = append(body, &Command{Print_cmd, expr, nil, NoVar})
 
 	for match_token(tokens, current, Comma) {
 		expr, err = parse_expression(tokens, current)
@@ -369,8 +442,8 @@ func parse_print(tokens []Token, current *int) (*Command, error) {
 			return nil, err
 		}
 		space := TreeNode{Oper: Token{Lit_str, "<PRINT-SEP>", " ", tokens[*current].Line, tokens[*current].Start}}
-		body = append(body, &Command{Print_cmd, &space, nil, "", Nul})
-		body = append(body, &Command{Print_cmd, expr, nil, "", Nul})
+		body = append(body, &Command{Print_cmd, &space, nil, NoVar})
+		body = append(body, &Command{Print_cmd, expr, nil, NoVar})
 	}
 	err = expect_nl(tokens, current)
 	if err != nil {
@@ -378,8 +451,8 @@ func parse_print(tokens []Token, current *int) (*Command, error) {
 	}
 
 	newline := TreeNode{Oper: Token{Lit_str, "<PRINT-NL>", "\n", tokens[*current-1].Line, tokens[*current-1].Start}}
-	body = append(body, &Command{Print_cmd, &newline, nil, "", Nul})
-	return &Command{Block, nil, body, "", Nul}, nil
+	body = append(body, &Command{Print_cmd, &newline, nil, NoVar})
+	return &Command{Block, nil, body, NoVar}, nil
 }
 
 func parse_command(tokens []Token, current *int) (*Command, error) {
@@ -397,11 +470,20 @@ func parse_command(tokens []Token, current *int) (*Command, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &Command{Read_cmd, head, nil, "", Nul}, nil
+		return &Command{Read_cmd, head, nil, NoVar}, nil
 	}
 	//declaration
 	if match_token(tokens, current, Type_bool, Type_char, Type_num, Type_str) {
-		vtype := tokens[*current-1].Token_type
+		dec_type_tok := tokens[*current-1].Token_type
+		vtype := BaseNum
+		switch dec_type_tok {
+		case Type_bool:
+			vtype = BaseBool
+		case Type_char:
+			vtype = BaseChar
+		case Type_str:
+			vtype = BaseStr
+		}
 		if match_token_seq(tokens, current, []TokenType{Colon, Identifier}) {
 			id := tokens[*current-1].Lexeme
 			//check if setter expression is present -> add it to head
@@ -417,7 +499,7 @@ func parse_command(tokens []Token, current *int) (*Command, error) {
 			if err != nil {
 				return nil, err
 			}
-			return &Command{Vardef_cmd, head, nil, id, vtype}, nil
+			return &Command{Vardef_cmd, head, nil, Variable{id, vtype}}, nil
 
 		} else {
 			err := &ParseError{tokens[*current].Line, tokens[*current].Start, "Identifier expected"}
@@ -426,8 +508,27 @@ func parse_command(tokens []Token, current *int) (*Command, error) {
 		}
 	}
 	//assignment
-	if match_token_seq(tokens, current, []TokenType{Identifier, Equal}) {
-		id := tokens[*current-2].Lexeme
+	// if match_token_seq(tokens, current, []TokenType{Identifier, Equal}) {
+	// 	id := tokens[*current-2].Lexeme
+	// 	head, err := parse_expression(tokens, current)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	err = expect_nl(tokens, current)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	return &Command{Assign_cmd, head, nil, id, Nul}, nil
+	// }
+	if match_token(tokens, current, Identifier) {
+		indexed, err := parse_indexing(tokens, current)
+		if err != nil {
+			return nil, err
+		}
+		// fmt.Println(indexed)
+		if !match_token(tokens, current, Equal) {
+			panic("Unreachable?")
+		}
 		head, err := parse_expression(tokens, current)
 		if err != nil {
 			return nil, err
@@ -436,7 +537,11 @@ func parse_command(tokens []Token, current *int) (*Command, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &Command{Assign_cmd, head, nil, id, Nul}, nil
+
+		// &Command{List_cmd, head, nil, indexed.Oper.Left.Lexeme, Nul}, nil
+		// this is jank AF
+		// different assignment thing is needed in the interpretation part
+		return &Command{Assign_cmd, head, nil, Variable{indexed.Oper.Lexeme, ValueType{}}}, nil
 	}
 	//if
 	if match_token(tokens, current, St_if) {
@@ -475,7 +580,7 @@ func parse_command(tokens []Token, current *int) (*Command, error) {
 	// 	if err != nil {
 	// 		return nil, err
 	// 	}
-	// 	return &Command{expr_cmd, head, nil, "", Nul}, nil
+	// 	return &Command{Expr_cmd, head, nil, "", Nul}, nil
 	// }
 }
 
@@ -622,5 +727,5 @@ func Parser(tokens []Token) (*Command, []error) {
 		}
 		body = append(body, cmd)
 	}
-	return &Command{Prog_cmd, head, body, "", Nul}, err
+	return &Command{Prog_cmd, head, body, NoVar}, err
 }

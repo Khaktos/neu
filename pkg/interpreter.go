@@ -11,7 +11,7 @@ import (
 
 type Env struct {
 	Values map[string]any
-	Types  map[string]TokenType
+	Types  map[string]ValueType
 	Parent *Env
 }
 
@@ -20,21 +20,36 @@ func (e *Env) Init(par *Env) {
 		e.Values = make(map[string]any)
 	}
 	if e.Types == nil {
-		e.Types = make(map[string]TokenType)
+		e.Types = make(map[string]ValueType)
 	}
 	e.Parent = par
 }
 
-func (e *Env) Define(id string, typ TokenType) {
+func (e *Env) Define(id string, typ ValueType) {
 	e.Values[id] = nil
 	e.Types[id] = typ
 }
 
-func (e *Env) Put(id string, typ TokenType, val any, line, pos int) error {
+func isSameType(a, b ValueType) bool {
+	if a.BaseType != b.BaseType {
+		return false
+	}
+	if len(a.SubType) != len(b.SubType) {
+		return false
+	}
+	for idx, sub_a := range a.SubType {
+		if !isSameType(sub_a, b.SubType[idx]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (e *Env) Put(id string, typ ValueType, val any, line, pos int) error {
 	c_typ, ok := e.Types[id]
 	//the variable exists, check its type
 	if ok {
-		if typ != c_typ {
+		if !isSameType(typ, c_typ) {
 			// print_error(line, pos, "Variable type does not match assigned type")
 			return &RunError{line, pos, "Variable type does not match assigned type"}
 		}
@@ -62,11 +77,11 @@ func (e *Env) Get(id string, line, pos int) (any, error) {
 	}
 	return val, nil
 }
-func (e *Env) Get_type(id string, line, pos int) (TokenType, error) {
+func (e *Env) Get_type(id string, line, pos int) (ValueType, error) {
 	c_typ, ok := e.Types[id]
 	if !ok {
 		// print_error(line, pos, "Variable is undeclared")
-		return Nul, &RunError{line, pos, "Variable is undeclared"}
+		return ValueType{}, &RunError{line, pos, "Variable is undeclared"}
 	}
 	return c_typ, nil
 }
@@ -563,8 +578,7 @@ func do_read(env *Env, cmd *Command) error {
 	}
 	var val any
 
-	switch valtype {
-	case Type_num:
+	if isSameType(valtype, BaseNum) {
 		val, err = strconv.Atoi(text)
 		if err != nil {
 			val, err = strconv.ParseFloat(text, 64)
@@ -572,19 +586,23 @@ func do_read(env *Env, cmd *Command) error {
 				return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, "Can not convert to NUM type"}
 			}
 		}
-	case Type_char:
+	}
+	if isSameType(valtype, BaseChar) {
 		if len(text) > 1 || len(text) == 0 {
 			return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, "Can not convert to KAR type"}
 		}
 		val = []rune(text)[0]
-	case Type_bool:
+	}
+	if isSameType(valtype, BaseBool) {
 		if text != "IGAZ" && text != "HAMIS" {
 			return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, "Can not convert to LOG type"}
 		}
 		val = text == "IGAZ"
-	case Type_str:
+	}
+	if isSameType(valtype, BaseStr) {
 		val = text
 	}
+
 	env.Put(cmd.Head.Oper.Lexeme, valtype, val, cmd.Head.Oper.Line, cmd.Head.Oper.Start)
 	return nil
 }
@@ -605,7 +623,7 @@ func (cmd *Command) Interpret(env *Env) error {
 			return err
 		}
 	case Vardef_cmd:
-		env.Define(cmd.Id, cmd.Vtype)
+		env.Define(cmd.Def.Id, cmd.Def.Valtype)
 		fallthrough
 	case Assign_cmd:
 		if cmd.Head != nil {
@@ -613,22 +631,22 @@ func (cmd *Command) Interpret(env *Env) error {
 			if err != nil {
 				return err
 			}
-			var etype TokenType
+			var etype ValueType
 			switch val.(type) {
 			case bool:
-				etype = Type_bool
+				etype = BaseBool
 			case rune:
-				etype = Type_char
+				etype = BaseChar
 			case string:
-				etype = Type_str
+				etype = BaseStr
 			case int:
-				etype = Type_num
+				etype = BaseNum
 			case float64:
-				etype = Type_num
+				etype = BaseNum
 			default:
-				etype = Nul
+				etype = ValueType{}
 			}
-			env.Put(cmd.Id, etype, val, cmd.Head.Oper.Line, 0)
+			env.Put(cmd.Def.Id, etype, val, cmd.Head.Oper.Line, 0)
 		}
 	case Prog_cmd:
 		g_env := Env{}
@@ -692,7 +710,7 @@ func (cmd *Command) Interpret(env *Env) error {
 			if err != nil {
 				return err
 			}
-			idx_name = cmd.Body[0].Id
+			idx_name = cmd.Body[0].Def.Id
 		}
 
 		for_block := cmd.Body[1]
@@ -729,7 +747,7 @@ func (cmd *Command) Interpret(env *Env) error {
 			if err != nil {
 				return err
 			}
-			idx_name = cmd.Body[0].Id
+			idx_name = cmd.Body[0].Def.Id
 		}
 
 		for_block := cmd.Body[1]
@@ -761,7 +779,7 @@ func (cmd *Command) Interpret(env *Env) error {
 func (cmd *Command) Print(in string) {
 	fmt.Printf("%s(%v ", in, cmd.Stmt_type)
 	if cmd.Stmt_type == Vardef_cmd {
-		fmt.Printf("%s, %s", cmd.Id, cmd.Vtype)
+		fmt.Printf("%s, %s", cmd.Def.Id, cmd.Def.Valtype)
 	}
 	if cmd.Head != nil {
 		fmt.Printf(" Head: %s", cmd.Head.print())

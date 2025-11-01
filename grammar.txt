@@ -3,7 +3,7 @@ program ::= "PROG" ":" identifier "\n" commands ":" "PROG"
 commands ::= (command "\n")*
 command ::= value | branch | loop | io | declaration
 
-value ::= identifier "=" expression
+value ::= indexing "=" expression
 
 branch ::= "HA" ":" expression "\n" commands (":" "DE-HA" ":" commands)* (":" "NEM-HA" ":" commands)? ":" "HA"
 
@@ -19,12 +19,17 @@ expression ::= equality (("AND" | "OR") equality)*
 equality ::= comparison (("==" | "!=") comparison)*
 comparison ::= term ((">" | ">=" | "<" | "<=") term)*
 term ::= factor (("+" | "-") factor)*
-factor ::= unary (("*" | "/" | "//" | "%"))* unary
+factor ::= unary (("*" | "/" | "//" | "%") unary)*
 unary ::= (("NOT" | "-") unary) | primary
-primary ::= NUMBER | STRING | CHAR | "IGAZ" | "HAMIS" | "SEMMI" | "(" expression ")"
+primary ::= NUMBER | STRING | CHAR | "IGAZ" | "HAMIS" | "SEMMI" | "(" expression ")" | indexing
 
+indexing ::= idendifier ("[" expression "]")*
 identifier ::= [A-z] (idchar)*
 idchar ::= [A-z] | [0-9] | "_" | "?"
 
-declaration ::= type ":" identifier ("=" expression)?
-type ::= "NUM" | "TXT" | "KAR" | "LOG"
+declaration ::= atomic-declaration | list-declaration
+atomic-declaration ::= atomic-type ":" identifier ("=" expression)?
+list-declaration ::= list ":" identifier "[" expression "]"
+type ::= atomic-type | list-type
+list-type ::= "LIST" "[" type "]"
+atomic-type ::= "NUM" | "TXT" | "KAR" | "LOG"
