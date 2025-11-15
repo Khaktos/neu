@@ -17,7 +17,6 @@ type TreeNode struct {
 }
 
 type CommandType int
-type BaseValueType int
 
 const (
 	Prog_cmd CommandType = iota
@@ -32,15 +31,6 @@ const (
 	While_cmd
 	Block
 	Expr_cmd
-)
-
-const (
-	Nul_type BaseValueType = iota
-	Num_type
-	Str_type
-	Bool_type
-	Char_type
-	List_type
 )
 
 func (c CommandType) String() string {
@@ -79,50 +69,6 @@ type Command struct {
 	Head      *TreeNode
 	Body      []*Command
 	Def       Variable
-}
-
-var NoVar = Variable{}
-
-type ValueType struct {
-	BaseType BaseValueType
-	SubType  []ValueType
-}
-
-func (v ValueType) String() string {
-	switch v.BaseType {
-	case Nul_type:
-		return "NIL_T"
-	case Num_type:
-		return "NUM_T"
-	case Str_type:
-		return "STR_T"
-	case Bool_type:
-		return "BOOL_T"
-	case Char_type:
-		return "CHAR_T"
-	case List_type:
-		return "LIST_T[" + v.SubType[0].String() + "]"
-	default:
-		return fmt.Sprintf("%d", v.BaseType)
-	}
-}
-
-// Base types
-var BaseNum = ValueType{Num_type, nil}
-var BaseStr = ValueType{Str_type, nil}
-var BaseBool = ValueType{Bool_type, nil}
-var BaseChar = ValueType{Char_type, nil}
-
-var token_to_type = map[TokenType]ValueType{
-	Type_num:  BaseNum,
-	Type_str:  BaseStr,
-	Type_bool: BaseBool,
-	Type_char: BaseChar,
-}
-
-type Variable struct {
-	Id      string
-	Valtype ValueType
 }
 
 type ParseError struct {
@@ -412,7 +358,7 @@ func parse_loop(tokens []Token, current *int, loop_type CommandType) (*Command, 
 			// index variable
 			// define new num variable
 			// set value to zero
-			idx_par := Token{Lit_num, "<IDX-PAR>", 0, tokens[*current].Line, tokens[*current].Start + 1}
+			idx_par := Token{Lit_num, "<IDX-PAR>", &IntVal{0}, tokens[*current].Line, tokens[*current].Start + 1}
 			idx_literal := &TreeNode{Oper: idx_par}
 			idx_def = &Command{Vardef_cmd, idx_literal, nil, Variable{tokens[*current-1].Lexeme, BaseNum}}
 		} else {
@@ -453,7 +399,7 @@ func parse_print(tokens []Token, current *int) (*Command, error) {
 		if err != nil {
 			return nil, err
 		}
-		space := TreeNode{Oper: Token{Lit_str, "<PRINT-SEP>", " ", tokens[*current].Line, tokens[*current].Start}}
+		space := TreeNode{Oper: Token{Lit_str, "<PRINT-SEP>", &StrVal{" "}, tokens[*current].Line, tokens[*current].Start}}
 		body = append(body, &Command{Print_cmd, &space, nil, NoVar})
 		body = append(body, &Command{Print_cmd, expr, nil, NoVar})
 	}
@@ -462,7 +408,7 @@ func parse_print(tokens []Token, current *int) (*Command, error) {
 		return nil, err
 	}
 
-	newline := TreeNode{Oper: Token{Lit_str, "<PRINT-NL>", "\n", tokens[*current-1].Line, tokens[*current-1].Start}}
+	newline := TreeNode{Oper: Token{Lit_str, "<PRINT-NL>", &StrVal{"\n"}, tokens[*current-1].Line, tokens[*current-1].Start}}
 	body = append(body, &Command{Print_cmd, &newline, nil, NoVar})
 	return &Command{Block, nil, body, NoVar}, nil
 }
