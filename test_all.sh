@@ -20,6 +20,7 @@ for file in ./tests/*_output.txt; do
   if grep -q "panic" "$file"; then
     has_fail=true
     echo -e "$(basename "$file"): ${RED}failed with panic${NC}"
+    cat "$file"
   elif cmp -s "$file" ./tests/expected/$(basename "$file"); then
     echo -e "$(basename "$file"): ${GREEN}passed${NC}"
   else
@@ -35,3 +36,4 @@ if [ "$has_fail" = true ]; then
 else
   echo "Tests done!"
 fi
+rm neu
