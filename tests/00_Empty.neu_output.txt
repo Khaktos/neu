@@ -1,3 +1,0 @@
-[ERROR] Parsing: Line 0 Column 1: No PROG tag found
-[ERROR] Parsing: Line 2 Column 1: PROG tag not closed
-[ERROR] Parsing: Line 2 Column 1: No PROG indentifier

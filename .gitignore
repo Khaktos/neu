@@ -26,3 +26,5 @@ go.work.sum
 
 # build directory
 /build
+
+*neu_output.txt
