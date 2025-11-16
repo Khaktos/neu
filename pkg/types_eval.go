@@ -74,6 +74,7 @@ func isSameType(a, b ValueType) bool {
 
 type Val interface {
 	Get() any
+	Name() string
 }
 type Comparable interface {
 	Val
@@ -90,9 +91,9 @@ type Addable interface {
 }
 type Logical interface {
 	Comparable
-	Not()
-	And(Logical)
-	Or(Logical)
+	Not() Logical
+	And(Logical) Logical
+	Or(Logical) Logical
 }
 type Ordered interface {
 	Comparable
@@ -101,7 +102,7 @@ type Ordered interface {
 type Numeric interface {
 	Addable
 	Ordered
-	Invert() error
+	Invert() (Numeric, error)
 	Subtract(Numeric) (Numeric, error)
 	Multiply(Numeric) (Numeric, error)
 	Divide(Numeric) (Numeric, error)
@@ -152,21 +153,41 @@ func (b *BoolVal) Get() any {
 func (l *ListVal) Get() any {
 	return l.Stored
 }
+func (n *NullVal) Name() string {
+	return "SEMMI"
+}
+func (i *IntVal) Name() string {
+	return "NUM"
+}
+func (f *FloatVal) Name() string {
+	return "NUM"
+}
+func (s *StrVal) Name() string {
+	return "TXT"
+}
+func (c *CharVal) Name() string {
+	return "KAR"
+}
+func (b *BoolVal) Name() string {
+	return "LOG"
+}
+func (l *ListVal) Name() string {
+	return "LIST"
+}
 
-func (i *BoolVal) And(other Logical) {
-	i.Value = i.Value && other.Get().(bool)
+func (i *BoolVal) And(other Logical) Logical {
+	return &BoolVal{i.Value && other.Get().(bool)}
 }
-func (i *BoolVal) Or(other Logical) {
-	i.Value = i.Value || other.Get().(bool)
+func (i *BoolVal) Or(other Logical) Logical {
+	return &BoolVal{i.Value || other.Get().(bool)}
 }
-func (i *BoolVal) Not() {
-	i.Value = !i.Value
+func (i *BoolVal) Not() Logical {
+	return &BoolVal{!i.Value}
 }
 
 func (i *BoolVal) Equal(other Comparable) Logical {
 	inner, ok := other.(*BoolVal)
-	i.Value = ok && i.Value == inner.Value
-	return i
+	return &BoolVal{ok && i.Value == inner.Value}
 }
 func (i *StrVal) Equal(other Comparable) Logical {
 	inner, ok := other.(*StrVal)
@@ -192,8 +213,7 @@ func (i *StrVal) Add(other Addable) (Addable, error) {
 	if !ok {
 		return nil, fmt.Errorf("Not a string")
 	}
-	i.Value = fmt.Sprint(i.Value, inner.Value)
-	return i, nil
+	return &StrVal{fmt.Sprint(i.Value, inner.Value)}, nil
 }
 func (i *IntVal) Add(other Addable) (Addable, error) {
 	inner_i, isint := other.(*IntVal)
@@ -202,8 +222,7 @@ func (i *IntVal) Add(other Addable) (Addable, error) {
 		return nil, fmt.Errorf("Not a number")
 	}
 	if isint {
-		i.Value = i.Value + inner_i.Value
-		return i, nil
+		return &IntVal{i.Value + inner_i.Value}, nil
 	}
 	return &FloatVal{float64(i.Value) + inner_f.Value}, nil
 }
@@ -214,8 +233,7 @@ func (i *FloatVal) Add(other Addable) (Addable, error) {
 		return nil, fmt.Errorf("Not a number")
 	}
 	if isfloat {
-		i.Value = i.Value + inner_f.Value
-		return i, nil
+		return &FloatVal{i.Value + inner_f.Value}, nil
 	}
 	return &FloatVal{i.Value + float64(inner_i.Value)}, nil
 }
@@ -243,9 +261,8 @@ func (i *FloatVal) Greater(other Ordered) (Logical, error) {
 	return &BoolVal{i.Value > float64(inner_i.Value)}, nil
 }
 
-func (i *IntVal) Invert() error {
-	i.Value = -i.Value
-	return nil
+func (i *IntVal) Invert() (Numeric, error) {
+	return &IntVal{-i.Value}, nil
 }
 func (i *IntVal) Subtract(other Numeric) (Numeric, error) {
 	inner_i, isint := other.(*IntVal)
@@ -254,26 +271,57 @@ func (i *IntVal) Subtract(other Numeric) (Numeric, error) {
 		panic("Unreachable!")
 	}
 	if isint {
-		i.Value = i.Value - inner_i.Value
-		return i, nil
+		return &IntVal{i.Value - inner_i.Value}, nil
 	}
 	return &FloatVal{float64(i.Value) - inner_f.Value}, nil
 }
 func (i *IntVal) Multiply(other Numeric) (Numeric, error) {
-	panic("TODO")
+	inner_i, isint := other.(*IntVal)
+	inner_f, isfloat := other.(*FloatVal)
+	if !isint && !isfloat {
+		panic("Unreachable!")
+	}
+	if isint {
+		return &IntVal{i.Value * inner_i.Value}, nil
+	}
+	return &FloatVal{float64(i.Value) * inner_f.Value}, nil
 }
 func (i *IntVal) Divide(other Numeric) (Numeric, error) {
-	panic("TODO")
+	inner_i, isint := other.(*IntVal)
+	inner_f, isfloat := other.(*FloatVal)
+	if !isint && !isfloat {
+		panic("Unreachable!")
+	}
+	if isint {
+		return &IntVal{i.Value / inner_i.Value}, nil
+	}
+	return &FloatVal{float64(i.Value) / inner_f.Value}, nil
 }
 func (i *IntVal) IntDiv(other Numeric) (Numeric, error) {
-	panic("TODO")
+	inner_i, isint := other.(*IntVal)
+	inner_f, isfloat := other.(*FloatVal)
+	if !isint && !isfloat {
+		panic("Unreachable!")
+	}
+	if isint {
+		return &IntVal{i.Value / inner_i.Value}, nil
+	}
+	i.Value = int(float64(i.Value) / inner_f.Value)
+	return i, nil
 }
 func (i *IntVal) Modulo(other Numeric) (Numeric, error) {
-	panic("TODO")
+	inner_i, isint := other.(*IntVal)
+	_, isfloat := other.(*FloatVal)
+	if !isint && !isfloat {
+		panic("Unreachable!")
+	}
+	if isint {
+		return &IntVal{i.Value % inner_i.Value}, nil
+	}
+	return nil, fmt.Errorf("Right hand value must be integer")
 }
-func (i *FloatVal) Invert() error {
-	i.Value = -i.Value
-	return nil
+func (i *FloatVal) Invert() (Numeric, error) {
+	return &FloatVal{-i.Value}, nil
 }
 func (i *FloatVal) Subtract(other Numeric) (Numeric, error) {
 	inner_i, isint := other.(*IntVal)
@@ -282,165 +330,192 @@ func (i *FloatVal) Subtract(other Numeric) (Numeric, error) {
 		panic("Unreachable!")
 	}
 	if isfloat {
-		i.Value = i.Value - inner_f.Value
-		return i, nil
+		return &FloatVal{i.Value - inner_f.Value}, nil
 	}
 	return &FloatVal{i.Value - float64(inner_i.Value)}, nil
 }
 func (i *FloatVal) Multiply(other Numeric) (Numeric, error) {
-	panic("TODO")
+	inner_i, isint := other.(*IntVal)
+	inner_f, isfloat := other.(*FloatVal)
+	if !isint && !isfloat {
+		panic("Unreachable!")
+	}
+	if isfloat {
+		return &FloatVal{i.Value * inner_f.Value}, nil
+	}
+	return &FloatVal{i.Value * float64(inner_i.Value)}, nil
 }
 func (i *FloatVal) Divide(other Numeric) (Numeric, error) {
-	panic("TODO")
+	inner_i, isint := other.(*IntVal)
+	inner_f, isfloat := other.(*FloatVal)
+	if !isint && !isfloat {
+		panic("Unreachable!")
+	}
+	if isfloat {
+		return &FloatVal{i.Value / inner_f.Value}, nil
+	}
+	return &FloatVal{i.Value / float64(inner_i.Value)}, nil
 }
 func (i *FloatVal) IntDiv(other Numeric) (Numeric, error) {
-	panic("TODO")
+	inner_i, isint := other.(*IntVal)
+	inner_f, isfloat := other.(*FloatVal)
+	if !isint && !isfloat {
+		panic("Unreachable!")
+	}
+	if isfloat {
+		return &IntVal{int(i.Value / inner_f.Value)}, nil
+	}
+	return &FloatVal{i.Value - float64(inner_i.Value)}, nil
 }
 func (i *FloatVal) Modulo(other Numeric) (Numeric, error) {
-	panic("TODO")
+	inner_i, isint := other.(*IntVal)
+	_, isfloat := other.(*FloatVal)
+	if !isint && !isfloat {
+		panic("Unreachable!")
+	}
+	if isfloat {
+		return nil, fmt.Errorf("Right hand value must be integer")
+	}
+	whole := int(i.Value) % inner_i.Value
+	frac := i.Value - float64(inner_i.Value)
+	return &FloatVal{float64(whole) + frac}, nil
 }
 
 func binCompat[T Val](a, b Val, oper string) (T, T, error) {
 	ia, aok := a.(T)
 	ib, bok := b.(T)
 	if !aok || !bok {
-		return ia, ib, fmt.Errorf("%s binary operation not defined between %T and %T", oper, a, b)
+		return ia, ib, fmt.Errorf("\"%s\" binary operation not defined between %s and %s", oper, a.Name(), b.Name())
 	}
 	return ia, ib, nil
 }
-func unCompat[T any](a any, oper string) (T, error) {
+func unCompat[T Val](a Val, oper string) (T, error) {
 	ia, aok := a.(T)
 	if !aok {
-		return ia, fmt.Errorf("%s unary operation not defined on %T", oper, a)
+		return ia, fmt.Errorf("\"%s\" unary operation not defined on %s", oper, a.Name())
 	}
 	return ia, nil
 }
 
-func OpEqual(a, b Val) (Logical, error) {
-	ia, ib, err := binCompat[Comparable](a, b, "Equal")
+func OpEqual(a, b Val, name string) (Logical, error) {
+	ia, ib, err := binCompat[Comparable](a, b, name)
 	if err != nil {
 		return nil, err
 	}
-	return (ia).Equal(ib), nil
+	return ia.Equal(ib), nil
 }
-func OpNotEqual(a, b Val) (Logical, error) {
-	ia, ib, err := binCompat[Comparable](a, b, "NotEqual")
+func OpNotEqual(a, b Val, name string) (Logical, error) {
+	ia, ib, err := binCompat[Comparable](a, b, name)
 	if err != nil {
 		return nil, err
 	}
-	temp := (ia).Equal(ib)
+	temp := ia.Equal(ib)
 	temp.Not()
 	return temp, nil
 }
 
-func OpNot(a Val) (Logical, error) {
-	ia, err := unCompat[Logical](a, "Not")
-	(ia).Not()
-	return ia, err
+func OpNot(a Val, name string) (Logical, error) {
+	ia, err := unCompat[Logical](a, name)
+	return ia.Not(), err
 }
-func OpAnd(a, b Val) (Logical, error) {
-	ia, ib, err := binCompat[Logical](a, b, "And")
+func OpAnd(a, b Val, name string) (Logical, error) {
+	ia, ib, err := binCompat[Logical](a, b, name)
 	if err != nil {
 		return nil, err
 	}
-	(ia).And(ib)
-	return ia, err
+	return ia.And(ib), err
 }
-func OpOr(a, b Val) (Logical, error) {
-	ia, ib, err := binCompat[Logical](a, b, "Or")
+func OpOr(a, b Val, name string) (Logical, error) {
+	ia, ib, err := binCompat[Logical](a, b, name)
 	if err != nil {
 		return nil, err
 	}
-	(ia).Or(ib)
-	return ia, err
+	return ia.Or(ib), err
 }
-func OpAdd(a, b Val) (Addable, error) {
-	ia, ib, err := binCompat[Addable](a, b, "Addition")
+func OpAdd(a, b Val, name string) (Addable, error) {
+	ia, ib, err := binCompat[Addable](a, b, name)
 	if err != nil {
 		return nil, err
 	}
-	return (ia).Add(ib)
+	return ia.Add(ib)
 }
-func OpGreater(a, b Val) (Logical, error) {
-	ia, ib, err := binCompat[Ordered](a, b, "Greater")
+func OpGreater(a, b Val, name string) (Logical, error) {
+	ia, ib, err := binCompat[Ordered](a, b, name)
 	if err != nil {
 		return nil, err
 	}
-	return (ia).Greater(ib)
+	return ia.Greater(ib)
 }
-func OpLess(a, b Val) (Logical, error) {
-	ia, ib, err := binCompat[Ordered](a, b, "Less")
+func OpLess(a, b Val, name string) (Logical, error) {
+	ia, ib, err := binCompat[Ordered](a, b, name)
 	if err != nil {
 		return nil, err
 	}
-	step1, _ := (ia).Greater(ib)
-	step2 := (ia).Equal(ib)
-	step1.Not()
-	step2.Not()
-	step1.And(step2)
-	return step1, nil
+	step1, _ := ia.Greater(ib)
+	step2 := ia.Equal(ib)
+	step1 = step1.Not()
+	step2 = step2.Not()
+	return step1.And(step2), nil
 }
-func OpGrEqual(a, b Val) (Logical, error) {
-	ia, ib, err := binCompat[Ordered](a, b, "GrEqual")
+func OpGrEqual(a, b Val, name string) (Logical, error) {
+	ia, ib, err := binCompat[Ordered](a, b, name)
 	if err != nil {
 		return nil, err
 	}
-	step1, _ := (ia).Greater(ib)
-	step2 := (ia).Equal(ib)
-	step1.And(step2)
-	return step1, nil
+	step1, _ := ia.Greater(ib)
+	step2 := ia.Equal(ib)
+	return step1.And(step2), nil
 
 }
-func OpLeEqual(a, b Val) (Logical, error) {
-	ia, ib, err := binCompat[Ordered](a, b, "LeEqual")
+func OpLeEqual(a, b Val, name string) (Logical, error) {
+	ia, ib, err := binCompat[Ordered](a, b, name)
 	if err != nil {
 		return nil, err
 	}
 	step1, _ := (ia).Greater(ib)
-	step1.Not()
-	return step1, nil
+	return step1.Not(), nil
 }
 
-func OpInvert(a any) (Numeric, error) {
-	ia, err := unCompat[Numeric](a, "Invert")
+func OpInvert(a Val, name string) (Numeric, error) {
+	ia, err := unCompat[Numeric](a, name)
 	if err != nil {
 		return nil, err
 	}
-	(ia).Invert()
-	return ia, nil
+	return ia.Invert()
+
 }
-func OpSubtract(a, b Val) (Numeric, error) {
-	ia, ib, err := binCompat[Numeric](a, b, "Subtract")
+func OpSubtract(a, b Val, name string) (Numeric, error) {
+	ia, ib, err := binCompat[Numeric](a, b, name)
 	if err != nil {
 		return nil, err
 	}
-	return (ia).Subtract(ib)
+	return ia.Subtract(ib)
 }
-func OpMultiply(a, b Val) (Numeric, error) {
-	ia, ib, err := binCompat[Numeric](a, b, "Multiply")
+func OpMultiply(a, b Val, name string) (Numeric, error) {
+	ia, ib, err := binCompat[Numeric](a, b, name)
 	if err != nil {
 		return nil, err
 	}
-	return (ia).Multiply(ib)
+	return ia.Multiply(ib)
 }
-func OpDivide(a, b Val) (Numeric, error) {
-	ia, ib, err := binCompat[Numeric](a, b, "Divide")
+func OpDivide(a, b Val, name string) (Numeric, error) {
+	ia, ib, err := binCompat[Numeric](a, b, name)
 	if err != nil {
 		return nil, err
 	}
-	return (ia).Divide(ib)
+	return ia.Divide(ib)
 }
-func OpIntDiv(a, b Val) (Numeric, error) {
-	ia, ib, err := binCompat[Numeric](a, b, "IntDiv")
+func OpIntDiv(a, b Val, name string) (Numeric, error) {
+	ia, ib, err := binCompat[Numeric](a, b, name)
 	if err != nil {
 		return nil, err
 	}
-	return (ia).IntDiv(ib)
+	return ia.IntDiv(ib)
 }
-func OpModulo(a, b Val) (Numeric, error) {
-	ia, ib, err := binCompat[Numeric](a, b, "Modulo")
+func OpModulo(a, b Val, name string) (Numeric, error) {
+	ia, ib, err := binCompat[Numeric](a, b, name)
 	if err != nil {
 		return nil, err
 	}
-	return (ia).Modulo(ib)
+	return ia.Modulo(ib)
 }

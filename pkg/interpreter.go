@@ -82,9 +82,9 @@ func (e *RunError) Error() string {
 func eval_unary(value Val, oper Token) (Val, error) {
 	switch oper.Token_type {
 	case Not:
-		return OpNot(value)
+		return OpNot(value, oper.Lexeme)
 	case Minus:
-		return OpInvert(value)
+		return OpInvert(value, oper.Lexeme)
 	default:
 		panic("Error in unary evaluation!")
 	}
@@ -93,33 +93,33 @@ func eval_unary(value Val, oper Token) (Val, error) {
 func eval_binary(lval, rval Val, oper Token) (Val, error) {
 	switch oper.Token_type {
 	case And:
-		return OpAnd(lval, rval)
+		return OpAnd(lval, rval, oper.Lexeme)
 	case Or:
-		return OpOr(lval, rval)
+		return OpOr(lval, rval, oper.Lexeme)
 	case E_equal:
-		return OpEqual(lval, rval)
+		return OpEqual(lval, rval, oper.Lexeme)
 	case N_equal:
-		return OpNotEqual(lval, rval)
+		return OpNotEqual(lval, rval, oper.Lexeme)
 	case Greater:
-		return OpGreater(lval, rval)
+		return OpGreater(lval, rval, oper.Lexeme)
 	case G_equal:
-		return OpGrEqual(lval, rval)
+		return OpGrEqual(lval, rval, oper.Lexeme)
 	case Less:
-		return OpLess(lval, rval)
+		return OpLess(lval, rval, oper.Lexeme)
 	case L_equal:
-		return OpLeEqual(lval, rval)
+		return OpLeEqual(lval, rval, oper.Lexeme)
 	case Plus:
-		return OpAdd(lval, rval)
+		return OpAdd(lval, rval, oper.Lexeme)
 	case Minus:
-		return OpSubtract(lval, rval)
+		return OpSubtract(lval, rval, oper.Lexeme)
 	case Star:
-		return OpMultiply(lval, rval)
+		return OpMultiply(lval, rval, oper.Lexeme)
 	case Slash:
-		return OpDivide(lval, rval)
+		return OpDivide(lval, rval, oper.Lexeme)
 	case Sl_slash:
-		return OpIntDiv(lval, rval)
+		return OpIntDiv(lval, rval, oper.Lexeme)
 	case Percent:
-		return OpModulo(lval, rval)
+		return OpModulo(lval, rval, oper.Lexeme)
 	case L_brace:
 		panic("INDEXING")
 		// if rtype == "nul" {
@@ -157,15 +157,12 @@ func (node *TreeNode) eval(env *Env) (Val, error) {
 	//Group
 	case 1:
 		ret, err := node.Left.eval(env)
-		if err != nil {
-			err = &RunError{node.Oper.Line, node.Oper.Start, err.Error()}
-		}
 		return ret, err
 	//Unary
 	case 10:
 		val, err := node.Right.eval(env)
 		if err != nil {
-			return nil, &RunError{node.Oper.Line, node.Oper.Start, err.Error()}
+			return nil, err
 		}
 		ret, err := eval_unary(val, node.Oper)
 		if err != nil {
@@ -176,11 +173,11 @@ func (node *TreeNode) eval(env *Env) (Val, error) {
 	case 11:
 		lval, lerr := node.Left.eval(env)
 		if lerr != nil {
-			return nil, &RunError{node.Oper.Line, node.Oper.Start, lerr.Error()}
+			return nil, lerr
 		}
 		rval, rerr := node.Right.eval(env)
 		if rerr != nil {
-			return nil, &RunError{node.Oper.Line, node.Oper.Start, rerr.Error()}
+			return nil, rerr
 		}
 		ret, err := eval_binary(lval, rval, node.Oper)
 		if err != nil {
@@ -422,9 +419,7 @@ func (cmd *Command) Interpret(env *Env) error {
 				return err
 			}
 			if idx_name != "" {
-				temp := l_env.Values[idx_name].(*IntVal)
-				temp.Value = temp.Value + 1
-				l_env.Values[idx_name] = temp
+				l_env.Values[idx_name] = &IntVal{l_env.Values[idx_name].(*IntVal).Value + 1}
 			}
 		}
 	case While_cmd:
