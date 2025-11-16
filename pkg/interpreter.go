@@ -121,7 +121,8 @@ func eval_binary(lval, rval Val, oper Token) (Val, error) {
 	case Percent:
 		return OpModulo(lval, rval, oper.Lexeme)
 	case L_brace:
-		panic("INDEXING")
+		return OpIndex(lval, rval)
+		// panic("INDEXING")
 		// if rtype == "nul" {
 		// 	return nil, &RunError{oper.Line, oper.Start, "Index cannot be SEMMI"}
 		// }
@@ -329,16 +330,15 @@ func (cmd *Command) Interpret(env *Env) error {
 					if !ok {
 						return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, "Indexing variable must be integer"}
 					}
-					pv, err := env.Get(cmd.Def.Id, cmd.Head.Oper.Line, cmd.Head.Oper.Start)
+					vlist, err := env.Get(cmd.Def.Id, cmd.Head.Oper.Line, cmd.Head.Oper.Start)
 					if err != nil {
 						return err
 					}
-					prev, ok := pv.Get().([]Val)
+					list, ok := vlist.(*ListVal)
 					if !ok {
 						panic("Something went wrong in list element assignment")
 					}
-					prev[idx] = val
-					env.Put(cmd.Def.Id, cmd.Def.Valtype, &ListVal{prev}, cmd.Head.Oper.Line, cmd.Head.Oper.Start)
+					list.Stored[idx] = val
 				}
 			} else {
 				err = env.Put(cmd.Def.Id, etype, val, cmd.Head.Oper.Line, 0)
@@ -484,6 +484,9 @@ func (cmd *Command) Interpret(env *Env) error {
 			return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, "List size is not an integer"}
 		}
 		list := ListVal{make([]Val, size)}
+		for i := range list.Stored {
+			list.Stored[i] = &NullVal{}
+		}
 		env.Define(cmd.Def.Id, cmd.Def.Valtype)
 		env.Put(cmd.Def.Id, cmd.Def.Valtype, &list, cmd.Head.Oper.Line, 0)
 	default:

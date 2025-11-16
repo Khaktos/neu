@@ -381,10 +381,18 @@ func (i *FloatVal) Modulo(other Numeric) (Numeric, error) {
 	return &FloatVal{float64(whole) + frac}, nil
 }
 
+func (i *ListVal) Index(idx IntVal) (Val, error) {
+	return i.Stored[idx.Value], nil // bounds check here?
+}
+func (i *StrVal) Index(idx IntVal) (Val, error) {
+	return &CharVal{[]rune(i.Value)[idx.Value]}, nil // bounds check here?
+}
+
 func binCompat[T Val](a, b Val, oper string) (T, T, error) {
 	ia, aok := a.(T)
 	ib, bok := b.(T)
 	if !aok || !bok {
+		fmt.Println(a, b)
 		return ia, ib, fmt.Errorf("\"%s\" binary operation not defined between %s and %s", oper, a.Name(), b.Name())
 	}
 	return ia, ib, nil
@@ -518,4 +526,16 @@ func OpModulo(a, b Val, name string) (Numeric, error) {
 		return nil, err
 	}
 	return ia.Modulo(ib)
+}
+
+func OpIndex(a, b Val) (Val, error) {
+	ia, ok := a.(Indexable)
+	if !ok {
+		return nil, fmt.Errorf("not indexable")
+	}
+	ib, ok := b.(*IntVal)
+	if !ok {
+		return nil, fmt.Errorf("not an integer")
+	}
+	return ia.Index(*ib)
 }
