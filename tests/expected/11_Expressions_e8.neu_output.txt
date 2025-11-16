@@ -1,1 +1,1 @@
-[ERROR] Runtime: Line 5 Column 9: Boolean expected
+[ERROR] Runtime: Line 5 Column 9: "AND" binary operation not defined between NUM and LOG

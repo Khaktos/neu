@@ -1,2 +1,0 @@
-[ERROR] Parsing: Line 2 Column 9: Expected indexing variable
-[ERROR] Parsing: Line 4 Column 3: Unrecognized command type: :ISM

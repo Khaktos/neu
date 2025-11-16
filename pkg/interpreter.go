@@ -4,20 +4,19 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"slices"
 	"strconv"
 	"strings"
 )
 
 type Env struct {
-	Values map[string]any
+	Values map[string]Val
 	Types  map[string]ValueType
 	Parent *Env
 }
 
 func (e *Env) Init(par *Env) {
 	if e.Values == nil {
-		e.Values = make(map[string]any)
+		e.Values = make(map[string]Val)
 	}
 	if e.Types == nil {
 		e.Types = make(map[string]ValueType)
@@ -26,26 +25,11 @@ func (e *Env) Init(par *Env) {
 }
 
 func (e *Env) Define(id string, typ ValueType) {
-	e.Values[id] = nil
+	e.Values[id] = &NullVal{}
 	e.Types[id] = typ
 }
 
-func isSameType(a, b ValueType) bool {
-	if a.BaseType != b.BaseType {
-		return false
-	}
-	if len(a.SubType) != len(b.SubType) {
-		return false
-	}
-	for idx, sub_a := range a.SubType {
-		if !isSameType(sub_a, b.SubType[idx]) {
-			return false
-		}
-	}
-	return true
-}
-
-func (e *Env) Put(id string, typ ValueType, val any, line, pos int) error {
+func (e *Env) Put(id string, typ ValueType, val Val, line, pos int) error {
 	c_typ, ok := e.Types[id]
 	//the variable exists, check its type
 	if ok {
@@ -66,7 +50,7 @@ func (e *Env) Put(id string, typ ValueType, val any, line, pos int) error {
 	}
 	return nil
 }
-func (e *Env) Get(id string, line, pos int) (any, error) {
+func (e *Env) Get(id string, line, pos int) (Val, error) {
 	val, ok := e.Values[id]
 	if !ok {
 		if e.Parent != nil {
@@ -95,396 +79,59 @@ func (e *RunError) Error() string {
 	return fmt.Sprintf("[ERROR] Runtime: Line %d Column %d: %s", e.line, e.pos+1, e.msg)
 }
 
-func unwrap_type(left, right any) (ltype, rtype string) {
-	switch left.(type) {
-	case bool:
-		ltype = "bool"
-	case rune:
-		ltype = "char"
-	case string:
-		ltype = "str"
-	case int:
-		ltype = "int"
-	case float64:
-		ltype = "float"
-	default:
-		ltype = "nul"
-	}
-	switch right.(type) {
-	case bool:
-		rtype = "bool"
-	case rune:
-		rtype = "char"
-	case string:
-		rtype = "str"
-	case int:
-		rtype = "int"
-	case float64:
-		rtype = "float"
-	default:
-		rtype = "nul"
-	}
-	return
-}
-
-func eval_unary(value any, oper Token) (any, error) {
+func eval_unary(value Val, oper Token) (Val, error) {
 	switch oper.Token_type {
 	case Not:
-		switch v := value.(type) {
-		case bool:
-			return !v, nil
-		default:
-			return nil, &RunError{oper.Line, oper.Start, "Boolean expected"}
-		}
+		return OpNot(value, oper.Lexeme)
 	case Minus:
-		switch v := value.(type) {
-		case int:
-			return -v, nil
-		case float64:
-			return -v, nil
-		default:
-			return nil, &RunError{oper.Line, oper.Start, "Number expected"}
-		}
+		return OpInvert(value, oper.Lexeme)
 	default:
 		panic("Error in unary evaluation!")
 	}
 }
 
-func got_nul(ltype, rtype string, line, pos int) error {
-	if ltype == "nul" {
-		return &RunError{line, pos, "Left value in binary operator is SEMMI"}
-	}
-	if rtype == "nul" {
-		return &RunError{line, pos, "Right value in binary operator is SEMMI"}
-	}
-	return nil
-}
-
-// This is fucking stupid
-// I tried to refactor this, but since I can't create generic function literals to pass as arguments
-// and I can't create working sum types this "any" shenanigans and this ugly ass 300 line long function must stay
-func eval_binary(lval, rval any, oper Token) (any, error) {
-	ltype, rtype := unwrap_type(lval, rval)
+func eval_binary(lval, rval Val, oper Token) (Val, error) {
 	switch oper.Token_type {
 	case And:
-		err := got_nul(ltype, rtype, oper.Line, oper.Start)
-		if err != nil {
-			return nil, err
-		}
-		if ltype != "bool" || rtype != "bool" {
-			return nil, &RunError{oper.Line, oper.Start, "Boolean expected"}
-		}
-		return lval.(bool) && rval.(bool), nil
+		return OpAnd(lval, rval, oper.Lexeme)
 	case Or:
-		err := got_nul(ltype, rtype, oper.Line, oper.Start)
-		if err != nil {
-			return nil, err
-		}
-		if ltype != "bool" || rtype != "bool" {
-			return nil, &RunError{oper.Line, oper.Start, "Boolean expected"}
-		}
-		return lval.(bool) || rval.(bool), nil
+		return OpOr(lval, rval, oper.Lexeme)
 	case E_equal:
-		// if ltype != rtype {
-		// 	return nil, &RunError{oper.Line, oper.Start, "Mismatched types not supported"}
-		// }
-		return lval == rval, nil
+		return OpEqual(lval, rval, oper.Lexeme)
 	case N_equal:
-		// if ltype != rtype {
-		// 	return nil, &RunError{oper.Line, oper.Start, "Mismatched types not supported"}
-		// }
-		return lval != rval, nil
+		return OpNotEqual(lval, rval, oper.Lexeme)
 	case Greater:
-		err := got_nul(ltype, rtype, oper.Line, oper.Start)
-		if err != nil {
-			return nil, err
-		}
-		unsupp := []string{"bool", "str"}
-		if slices.Contains(unsupp, ltype) || slices.Contains(unsupp, rtype) {
-			return nil, &RunError{oper.Line, oper.Start, "This operator does not support booleans or strings"}
-		}
-		if ltype != rtype {
-			//convert type
-			if ltype == "int" && rtype == "float" {
-				return float64(lval.(int)) > rval.(float64), nil
-			}
-			if ltype == "float" && rtype == "int" {
-				return lval.(float64) > float64(rval.(int)), nil
-			}
-			return nil, &RunError{oper.Line, oper.Start, "Mismatched types not supported"}
-		}
-		if ltype == "int" {
-			return lval.(int) > rval.(int), nil
-		}
-		if ltype == "float" {
-			return lval.(float64) > rval.(float64), nil
-		}
-		if ltype == "char" {
-			return lval.(rune) > rval.(rune), nil
-		}
-		return nil, &RunError{oper.Line, oper.Start, "Something went wrong in type checking"}
+		return OpGreater(lval, rval, oper.Lexeme)
 	case G_equal:
-		err := got_nul(ltype, rtype, oper.Line, oper.Start)
-		if err != nil {
-			return nil, err
-		}
-		unsupp := []string{"bool", "str"}
-		if slices.Contains(unsupp, ltype) || slices.Contains(unsupp, rtype) {
-			return nil, &RunError{oper.Line, oper.Start, "This operator does not support booleans or strings"}
-		}
-		if ltype != rtype {
-			//convert type
-			if ltype == "int" && rtype == "float" {
-				return float64(lval.(int)) >= rval.(float64), nil
-			}
-			if ltype == "float" && rtype == "int" {
-				return lval.(float64) >= float64(rval.(int)), nil
-			}
-			return nil, &RunError{oper.Line, oper.Start, "Mismatched types not supported"}
-		}
-		if ltype == "int" {
-			return lval.(int) >= rval.(int), nil
-		}
-		if ltype == "float" {
-			return lval.(float64) >= rval.(float64), nil
-		}
-		if ltype == "char" {
-			return lval.(rune) >= rval.(rune), nil
-		}
-		return nil, &RunError{oper.Line, oper.Start, "Something went wrong in type checking"}
+		return OpGrEqual(lval, rval, oper.Lexeme)
 	case Less:
-		err := got_nul(ltype, rtype, oper.Line, oper.Start)
-		if err != nil {
-			return nil, err
-		}
-		unsupp := []string{"bool", "str"}
-		if slices.Contains(unsupp, ltype) || slices.Contains(unsupp, rtype) {
-			return nil, &RunError{oper.Line, oper.Start, "This operator does not support booleans or strings"}
-		}
-		if ltype != rtype {
-			//convert type
-			if ltype == "int" && rtype == "float" {
-				return float64(lval.(int)) < rval.(float64), nil
-			}
-			if ltype == "float" && rtype == "int" {
-				return lval.(float64) < float64(rval.(int)), nil
-			}
-			return nil, &RunError{oper.Line, oper.Start, "Mismatched types not supported"}
-		}
-		if ltype == "int" {
-			return lval.(int) < rval.(int), nil
-		}
-		if ltype == "float" {
-			return lval.(float64) < rval.(float64), nil
-		}
-		if ltype == "char" {
-			return lval.(rune) < rval.(rune), nil
-		}
-		return nil, &RunError{oper.Line, oper.Start, "Something went wrong in type checking"}
+		return OpLess(lval, rval, oper.Lexeme)
 	case L_equal:
-		err := got_nul(ltype, rtype, oper.Line, oper.Start)
-		if err != nil {
-			return nil, err
-		}
-		unsupp := []string{"bool", "str"}
-		if slices.Contains(unsupp, ltype) || slices.Contains(unsupp, rtype) {
-			return nil, &RunError{oper.Line, oper.Start, "This operator does not support booleans or strings"}
-		}
-		if ltype != rtype {
-			//convert type
-			if ltype == "int" && rtype == "float" {
-				return float64(lval.(int)) <= rval.(float64), nil
-			}
-			if ltype == "float" && rtype == "int" {
-				return lval.(float64) <= float64(rval.(int)), nil
-			}
-			return nil, &RunError{oper.Line, oper.Start, "Mismatched types not supported"}
-		}
-		if ltype == "int" {
-			return lval.(int) <= rval.(int), nil
-		}
-		if ltype == "float" {
-			return lval.(float64) <= rval.(float64), nil
-		}
-		if ltype == "char" {
-			return lval.(rune) <= rval.(rune), nil
-		}
-		return nil, &RunError{oper.Line, oper.Start, "Something went wrong in type checking"}
+		return OpLeEqual(lval, rval, oper.Lexeme)
 	case Plus:
-		err := got_nul(ltype, rtype, oper.Line, oper.Start)
-		if err != nil {
-			return nil, err
-		}
-		unsupp := []string{"bool", "char"}
-		if slices.Contains(unsupp, ltype) || slices.Contains(unsupp, rtype) {
-			return nil, &RunError{oper.Line, oper.Start, "This operator does not support booleans or characters"}
-		}
-		if ltype != rtype {
-			//convert type
-			if ltype == "int" && rtype == "float" {
-				return float64(lval.(int)) + rval.(float64), nil
-			}
-			if ltype == "float" && rtype == "int" {
-				return lval.(float64) + float64(rval.(int)), nil
-			}
-			return nil, &RunError{oper.Line, oper.Start, "Mismatched types not supported"}
-		}
-		if ltype == "int" {
-			return lval.(int) + rval.(int), nil
-		}
-		if ltype == "float" {
-			return lval.(float64) + rval.(float64), nil
-		}
-		if ltype == "str" {
-			return fmt.Sprintf("%s%s", lval.(string), rval.(string)), nil
-		}
-		return nil, &RunError{oper.Line, oper.Start, "Something went wrong in type checking"}
+		return OpAdd(lval, rval, oper.Lexeme)
 	case Minus:
-		err := got_nul(ltype, rtype, oper.Line, oper.Start)
-		if err != nil {
-			return nil, err
-		}
-		unsupp := []string{"bool", "str", "char"}
-		if slices.Contains(unsupp, ltype) || slices.Contains(unsupp, rtype) {
-			return nil, &RunError{oper.Line, oper.Start, "This operator does not support booleans, strings or characters"}
-		}
-		if ltype != rtype {
-			//convert type
-			if ltype == "int" && rtype == "float" {
-				return float64(lval.(int)) - rval.(float64), nil
-			}
-			if ltype == "float" && rtype == "int" {
-				return lval.(float64) - float64(rval.(int)), nil
-			}
-			return nil, &RunError{oper.Line, oper.Start, "Mismatched types not supported"}
-		}
-		if ltype == "int" {
-			return lval.(int) - rval.(int), nil
-		}
-		if ltype == "float" {
-			return lval.(float64) - rval.(float64), nil
-		}
-		return nil, &RunError{oper.Line, oper.Start, "Something went wrong in type checking"}
+		return OpSubtract(lval, rval, oper.Lexeme)
 	case Star:
-		err := got_nul(ltype, rtype, oper.Line, oper.Start)
-		if err != nil {
-			return nil, err
-		}
-		unsupp := []string{"bool", "str", "char"}
-		if slices.Contains(unsupp, ltype) || slices.Contains(unsupp, rtype) {
-			return nil, &RunError{oper.Line, oper.Start, "This operator does not support booleans, strings or characters"}
-		}
-		if ltype != rtype {
-			//convert type
-			if ltype == "int" && rtype == "float" {
-				return float64(lval.(int)) * rval.(float64), nil
-			}
-			if ltype == "float" && rtype == "int" {
-				return lval.(float64) * float64(rval.(int)), nil
-			}
-			return nil, &RunError{oper.Line, oper.Start, "Mismatched types not supported"}
-		}
-		if ltype == "int" {
-			return lval.(int) * rval.(int), nil
-		}
-		if ltype == "float" {
-			return lval.(float64) * rval.(float64), nil
-		}
-		return nil, &RunError{oper.Line, oper.Start, "Something went wrong in type checking"}
+		return OpMultiply(lval, rval, oper.Lexeme)
 	case Slash:
-		err := got_nul(ltype, rtype, oper.Line, oper.Start)
-		if err != nil {
-			return nil, err
-		}
-		unsupp := []string{"bool", "str", "char"}
-		if slices.Contains(unsupp, ltype) || slices.Contains(unsupp, rtype) {
-			return nil, &RunError{oper.Line, oper.Start, "This operator does not support booleans, strings or characters"}
-		}
-		if ltype != rtype {
-			//convert type
-			if ltype == "int" && rtype == "float" {
-				return float64(lval.(int)) / rval.(float64), nil
-			}
-			if ltype == "float" && rtype == "int" {
-				return lval.(float64) / float64(rval.(int)), nil
-			}
-			return nil, &RunError{oper.Line, oper.Start, "Mismatched types not supported"}
-		}
-		if ltype == "int" {
-			return float64(lval.(int)) / float64(rval.(int)), nil
-		}
-		if ltype == "float" {
-			return lval.(float64) / rval.(float64), nil
-		}
-		return nil, &RunError{oper.Line, oper.Start, "Something went wrong in type checking"}
+		return OpDivide(lval, rval, oper.Lexeme)
 	case Sl_slash:
-		err := got_nul(ltype, rtype, oper.Line, oper.Start)
-		if err != nil {
-			return nil, err
-		}
-		unsupp := []string{"bool", "str", "char"}
-		if slices.Contains(unsupp, ltype) || slices.Contains(unsupp, rtype) {
-			return nil, &RunError{oper.Line, oper.Start, "This operator does not support booleans, strings or characters"}
-		}
-		if ltype != rtype {
-			//convert type
-			if ltype == "int" && rtype == "float" {
-				return lval.(int) / int(rval.(float64)), nil
-			}
-			if ltype == "float" && rtype == "int" {
-				return int(lval.(float64)) / rval.(int), nil
-			}
-			return nil, &RunError{oper.Line, oper.Start, "Mismatched types not supported"}
-		}
-		if ltype == "int" {
-			return lval.(int) / rval.(int), nil
-		}
-		if ltype == "float" {
-			return int(lval.(float64) / rval.(float64)), nil
-		}
-		return nil, &RunError{oper.Line, oper.Start, "Something went wrong in type checking"}
+		return OpIntDiv(lval, rval, oper.Lexeme)
 	case Percent:
-		err := got_nul(ltype, rtype, oper.Line, oper.Start)
-		if err != nil {
-			return nil, err
-		}
-		unsupp := []string{"bool", "str", "char"}
-		if slices.Contains(unsupp, ltype) || slices.Contains(unsupp, rtype) {
-			return nil, &RunError{oper.Line, oper.Start, "This operator does not support booleans, strings or characters"}
-		}
-		if ltype != rtype {
-			//convert type
-			if ltype == "int" && rtype == "float" {
-				return nil, &RunError{oper.Line, oper.Start, "Right hand value must be integer"}
-			}
-			if ltype == "float" && rtype == "int" {
-				whole := int(lval.(float64)) % rval.(int)
-				frac := lval.(float64) - float64(int(lval.(float64)))
-				if frac == 0 {
-					return whole, nil
-				}
-				return float64(whole) + frac, nil
-			}
-			return nil, &RunError{oper.Line, oper.Start, "Mismatched types not supported"}
-		}
-		if ltype == "int" {
-			return lval.(int) % rval.(int), nil
-		}
-		if ltype == "float" {
-			return nil, &RunError{oper.Line, oper.Start, "Right hand value must be integer"}
-		}
-		return nil, &RunError{oper.Line, oper.Start, "Something went wrong in type checking"}
+		return OpModulo(lval, rval, oper.Lexeme)
 	case L_brace:
-		if rtype == "nul" {
-			return nil, &RunError{oper.Line, oper.Start, "Index cannot be SEMMI"}
-		}
-		fmt.Println(lval)
-		return nil, &RunError{oper.Line, oper.Start, "INDEXING"}
+		panic("INDEXING")
+		// if rtype == "nul" {
+		// 	return nil, &RunError{oper.Line, oper.Start, "Index cannot be SEMMI"}
+		// }
+		// fmt.Println(lval)
+		// return nil, &RunError{oper.Line, oper.Start, "INDEXING"}
 	default:
 		panic("Error in binary evaluation!")
 	}
 }
-func (node *TreeNode) eval(env *Env) (any, error) {
+func (node *TreeNode) eval(env *Env) (Val, error) {
 	node_type := 0
 	if node.Left != nil {
 		node_type += 1
@@ -509,14 +156,19 @@ func (node *TreeNode) eval(env *Env) (any, error) {
 		}
 	//Group
 	case 1:
-		return node.Left.eval(env)
+		ret, err := node.Left.eval(env)
+		return ret, err
 	//Unary
 	case 10:
 		val, err := node.Right.eval(env)
 		if err != nil {
 			return nil, err
 		}
-		return eval_unary(val, node.Oper)
+		ret, err := eval_unary(val, node.Oper)
+		if err != nil {
+			err = &RunError{node.Oper.Line, node.Oper.Start, err.Error()}
+		}
+		return ret, err
 	//Binary
 	case 11:
 		lval, lerr := node.Left.eval(env)
@@ -527,7 +179,11 @@ func (node *TreeNode) eval(env *Env) (any, error) {
 		if rerr != nil {
 			return nil, rerr
 		}
-		return eval_binary(lval, rval, node.Oper)
+		ret, err := eval_binary(lval, rval, node.Oper)
+		if err != nil {
+			err = &RunError{node.Oper.Line, node.Oper.Start, err.Error()}
+		}
+		return ret, err
 	default:
 		panic("Error in AST node_type")
 	}
@@ -544,22 +200,22 @@ func (node *TreeNode) print() string {
 	}
 	return ret
 }
-func stringify(stuf any) string {
+func stringify(stuf Val) string {
 	switch val := stuf.(type) {
-	case float64:
-		return fmt.Sprintf("%f", val)
-	case int:
-		return fmt.Sprintf("%d", val)
-	case bool:
-		if val {
+	case *FloatVal:
+		return fmt.Sprintf("%f", val.Value)
+	case *IntVal:
+		return fmt.Sprintf("%d", val.Value)
+	case *BoolVal:
+		if val.Value {
 			return "IGAZ"
 		}
 		return "HAMIS"
-	case rune:
-		return fmt.Sprintf("%c", val)
-	case string:
-		return val
-	case nil:
+	case *CharVal:
+		return fmt.Sprintf("%c", val.Value)
+	case *StrVal:
+		return val.Value
+	case *NullVal:
 		return "SEMMI"
 	default:
 		return "Unknown type"
@@ -586,31 +242,35 @@ func do_read(env *Env, cmd *Command) error {
 	if len(text) == 0 {
 		return nil
 	}
-	var val any
+
+	var val Val
 
 	if isSameType(valtype, BaseNum) {
-		val, err = strconv.Atoi(text)
+		temp, err := strconv.Atoi(text)
 		if err != nil {
-			val, err = strconv.ParseFloat(text, 64)
+			temp, err := strconv.ParseFloat(text, 64)
 			if err != nil {
 				return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, "Can not convert to NUM type"}
 			}
+			val = &FloatVal{temp}
+		} else {
+			val = &IntVal{temp}
 		}
 	}
 	if isSameType(valtype, BaseChar) {
 		if len(text) > 1 || len(text) == 0 {
 			return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, "Can not convert to KAR type"}
 		}
-		val = []rune(text)[0]
+		val = &CharVal{[]rune(text)[0]}
 	}
 	if isSameType(valtype, BaseBool) {
 		if text != "IGAZ" && text != "HAMIS" {
 			return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, "Can not convert to LOG type"}
 		}
-		val = text == "IGAZ"
+		val = &BoolVal{text == "IGAZ"}
 	}
 	if isSameType(valtype, BaseStr) {
-		val = text
+		val = &StrVal{text}
 	}
 
 	err = env.Put(cmd.Head.Oper.Lexeme, valtype, val, cmd.Head.Oper.Line, cmd.Head.Oper.Start)
@@ -646,15 +306,15 @@ func (cmd *Command) Interpret(env *Env) error {
 			}
 			var etype ValueType
 			switch val.(type) {
-			case bool:
+			case *BoolVal:
 				etype = BaseBool
-			case rune:
+			case *CharVal:
 				etype = BaseChar
-			case string:
+			case *StrVal:
 				etype = BaseStr
-			case int:
+			case *IntVal:
 				etype = BaseNum
-			case float64:
+			case *FloatVal:
 				etype = BaseNum
 			default:
 				etype = ValueType{}
@@ -665,7 +325,7 @@ func (cmd *Command) Interpret(env *Env) error {
 					if err != nil {
 						return err
 					}
-					idx, ok := ix.(int)
+					idx, ok := ix.Get().(int)
 					if !ok {
 						return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, "Indexing variable must be integer"}
 					}
@@ -673,12 +333,12 @@ func (cmd *Command) Interpret(env *Env) error {
 					if err != nil {
 						return err
 					}
-					prev, ok := pv.([]any)
+					prev, ok := pv.Get().([]Val)
 					if !ok {
 						panic("Something went wrong in list element assignment")
 					}
 					prev[idx] = val
-					env.Put(cmd.Def.Id, cmd.Def.Valtype, prev, cmd.Head.Oper.Line, cmd.Head.Oper.Start)
+					env.Put(cmd.Def.Id, cmd.Def.Valtype, &ListVal{prev}, cmd.Head.Oper.Line, cmd.Head.Oper.Start)
 				}
 			} else {
 				err = env.Put(cmd.Def.Id, etype, val, cmd.Head.Oper.Line, 0)
@@ -705,13 +365,13 @@ func (cmd *Command) Interpret(env *Env) error {
 			return err
 		}
 		switch decide.(type) {
-		case bool:
+		case *BoolVal:
 			break
 		default:
 			msg := fmt.Sprintf("Value of expression: %s is not a boolean", stringify(decide))
 			return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, msg}
 		}
-		if decide.(bool) {
+		if decide.(*BoolVal).Get().(bool) {
 			err := cmd.Body[0].Interpret(env)
 			if err != nil {
 				return err
@@ -731,7 +391,7 @@ func (cmd *Command) Interpret(env *Env) error {
 			return err
 		}
 		switch rep.(type) {
-		case int:
+		case *IntVal:
 			break
 		default:
 			msg := fmt.Sprintf("Value of expression: %s is not an integer", stringify(rep))
@@ -753,13 +413,13 @@ func (cmd *Command) Interpret(env *Env) error {
 		}
 
 		for_block := cmd.Body[1]
-		for range rep.(int) {
+		for range rep.Get().(int) {
 			err := for_block.Interpret(&l_env)
 			if err != nil {
 				return err
 			}
 			if idx_name != "" {
-				l_env.Values[idx_name] = l_env.Values[idx_name].(int) + 1
+				l_env.Values[idx_name] = &IntVal{l_env.Values[idx_name].(*IntVal).Value + 1}
 			}
 		}
 	case While_cmd:
@@ -768,7 +428,7 @@ func (cmd *Command) Interpret(env *Env) error {
 			return err
 		}
 		switch cond.(type) {
-		case bool:
+		case *BoolVal:
 			break
 		default:
 			msg := fmt.Sprintf("Value of expression: %s is not a boolean", stringify(cond))
@@ -790,13 +450,15 @@ func (cmd *Command) Interpret(env *Env) error {
 		}
 
 		for_block := cmd.Body[1]
-		for cond.(bool) {
+		for cond.Get().(bool) {
 			err := for_block.Interpret(&l_env)
 			if err != nil {
 				return err
 			}
 			if idx_name != "" {
-				l_env.Values[idx_name] = l_env.Values[idx_name].(int) + 1
+				temp := l_env.Values[idx_name].(*IntVal)
+				temp.Value = temp.Value + 1
+				l_env.Values[idx_name] = temp
 			}
 			cond, err = cmd.Head.eval(env)
 			if err != nil {
@@ -817,13 +479,13 @@ func (cmd *Command) Interpret(env *Env) error {
 		if err != nil {
 			return err
 		}
-		size, ok := s.(int)
+		size, ok := s.(*IntVal).Get().(int)
 		if !ok {
 			return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, "List size is not an integer"}
 		}
-		list := make([]any, size)
+		list := ListVal{make([]Val, size)}
 		env.Define(cmd.Def.Id, cmd.Def.Valtype)
-		env.Put(cmd.Def.Id, cmd.Def.Valtype, list, cmd.Head.Oper.Line, 0)
+		env.Put(cmd.Def.Id, cmd.Def.Valtype, &list, cmd.Head.Oper.Line, 0)
 	default:
 		fmt.Println("New command with undefined behavior:")
 		cmd.Print("  >  ")

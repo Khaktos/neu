@@ -1,1 +1,1 @@
-[ERROR] Runtime: Line 6 Column 11: This operator does not support booleans or strings
+[ERROR] Runtime: Line 6 Column 11: "<" binary operation not defined between LOG and NUM

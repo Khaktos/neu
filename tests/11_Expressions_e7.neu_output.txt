@@ -1,1 +1,0 @@
-[ERROR] Runtime: Line 6 Column 11: This operator does not support booleans or strings

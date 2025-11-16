@@ -1,2 +1,0 @@
-[ERROR] Parsing: Line 3 Column 13: New line expected
-[ERROR] Parsing: Line 6 Column 6: Unrecognized command type: :CIKLUS
