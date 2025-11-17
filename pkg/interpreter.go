@@ -25,7 +25,7 @@ func (e *Env) Init(par *Env) {
 }
 
 func (e *Env) Define(id string, typ ValueType) {
-	e.Values[id] = &NullVal{}
+	e.Values[id] = NullVal{}
 	e.Types[id] = typ
 }
 
@@ -203,22 +203,23 @@ func (node *TreeNode) print() string {
 }
 func stringify(stuf Val) string {
 	switch val := stuf.(type) {
-	case *FloatVal:
+	case FloatVal:
 		return fmt.Sprintf("%f", val.Value)
-	case *IntVal:
+	case IntVal:
 		return fmt.Sprintf("%d", val.Value)
-	case *BoolVal:
+	case BoolVal:
 		if val.Value {
 			return "IGAZ"
 		}
 		return "HAMIS"
-	case *CharVal:
+	case CharVal:
 		return fmt.Sprintf("%c", val.Value)
-	case *StrVal:
+	case StrVal:
 		return val.Value
-	case *NullVal:
+	case NullVal:
 		return "SEMMI"
 	default:
+		fmt.Println(stuf.Name())
 		return "Unknown type"
 	}
 }
@@ -253,25 +254,25 @@ func do_read(env *Env, cmd *Command) error {
 			if err != nil {
 				return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, "Can not convert to NUM type"}
 			}
-			val = &FloatVal{temp}
+			val = FloatVal{temp}
 		} else {
-			val = &IntVal{temp}
+			val = IntVal{temp}
 		}
 	}
 	if isSameType(valtype, BaseChar) {
 		if len(text) > 1 || len(text) == 0 {
 			return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, "Can not convert to KAR type"}
 		}
-		val = &CharVal{[]rune(text)[0]}
+		val = CharVal{[]rune(text)[0]}
 	}
 	if isSameType(valtype, BaseBool) {
 		if text != "IGAZ" && text != "HAMIS" {
 			return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, "Can not convert to LOG type"}
 		}
-		val = &BoolVal{text == "IGAZ"}
+		val = BoolVal{text == "IGAZ"}
 	}
 	if isSameType(valtype, BaseStr) {
-		val = &StrVal{text}
+		val = StrVal{text}
 	}
 
 	err = env.Put(cmd.Head.Oper.Lexeme, valtype, val, cmd.Head.Oper.Line, cmd.Head.Oper.Start)
@@ -307,15 +308,15 @@ func (cmd *Command) Interpret(env *Env) error {
 			}
 			var etype ValueType
 			switch val.(type) {
-			case *BoolVal:
+			case BoolVal:
 				etype = BaseBool
-			case *CharVal:
+			case CharVal:
 				etype = BaseChar
-			case *StrVal:
+			case StrVal:
 				etype = BaseStr
-			case *IntVal:
+			case IntVal:
 				etype = BaseNum
-			case *FloatVal:
+			case FloatVal:
 				etype = BaseNum
 			default:
 				etype = ValueType{}
@@ -334,7 +335,7 @@ func (cmd *Command) Interpret(env *Env) error {
 					if err != nil {
 						return err
 					}
-					list, ok := vlist.(*ListVal)
+					list, ok := vlist.(ListVal)
 					if !ok {
 						panic("Something went wrong in list element assignment")
 					}
@@ -365,13 +366,13 @@ func (cmd *Command) Interpret(env *Env) error {
 			return err
 		}
 		switch decide.(type) {
-		case *BoolVal:
+		case BoolVal:
 			break
 		default:
 			msg := fmt.Sprintf("Value of expression: %s is not a boolean", stringify(decide))
 			return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, msg}
 		}
-		if decide.(*BoolVal).Get().(bool) {
+		if decide.(BoolVal).Get().(bool) {
 			err := cmd.Body[0].Interpret(env)
 			if err != nil {
 				return err
@@ -391,7 +392,7 @@ func (cmd *Command) Interpret(env *Env) error {
 			return err
 		}
 		switch rep.(type) {
-		case *IntVal:
+		case IntVal:
 			break
 		default:
 			msg := fmt.Sprintf("Value of expression: %s is not an integer", stringify(rep))
@@ -419,7 +420,7 @@ func (cmd *Command) Interpret(env *Env) error {
 				return err
 			}
 			if idx_name != "" {
-				l_env.Values[idx_name] = &IntVal{l_env.Values[idx_name].(*IntVal).Value + 1}
+				l_env.Values[idx_name] = IntVal{l_env.Values[idx_name].(IntVal).Value + 1}
 			}
 		}
 	case While_cmd:
@@ -428,7 +429,7 @@ func (cmd *Command) Interpret(env *Env) error {
 			return err
 		}
 		switch cond.(type) {
-		case *BoolVal:
+		case BoolVal:
 			break
 		default:
 			msg := fmt.Sprintf("Value of expression: %s is not a boolean", stringify(cond))
@@ -456,7 +457,7 @@ func (cmd *Command) Interpret(env *Env) error {
 				return err
 			}
 			if idx_name != "" {
-				temp := l_env.Values[idx_name].(*IntVal)
+				temp := l_env.Values[idx_name].(IntVal)
 				temp.Value = temp.Value + 1
 				l_env.Values[idx_name] = temp
 			}
@@ -479,16 +480,16 @@ func (cmd *Command) Interpret(env *Env) error {
 		if err != nil {
 			return err
 		}
-		size, ok := s.(*IntVal).Get().(int)
+		size, ok := s.(IntVal).Get().(int)
 		if !ok {
 			return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, "List size is not an integer"}
 		}
 		list := ListVal{make([]Val, size)}
 		for i := range list.Stored {
-			list.Stored[i] = &NullVal{}
+			list.Stored[i] = NullVal{}
 		}
 		env.Define(cmd.Def.Id, cmd.Def.Valtype)
-		env.Put(cmd.Def.Id, cmd.Def.Valtype, &list, cmd.Head.Oper.Line, 0)
+		env.Put(cmd.Def.Id, cmd.Def.Valtype, list, cmd.Head.Oper.Line, 0)
 	default:
 		fmt.Println("New command with undefined behavior:")
 		cmd.Print("  >  ")

@@ -429,7 +429,7 @@ func Lexer(line string, line_num int) ([]Token, []error) {
 				continue
 			}
 			// value = value[1 : len(value)-1]
-			c_token = Token{Lit_str, value, &StrVal{value}, line_num, current}
+			c_token = Token{Lit_str, value, StrVal{value}, line_num, current}
 		case '\'':
 			value, e := match_until(line, "'", &current)
 			if e != nil {
@@ -441,7 +441,7 @@ func Lexer(line string, line_num int) ([]Token, []error) {
 				continue
 			}
 			// value = value[1 : len(value)-1]
-			c_token = Token{Lit_char, value, &CharVal{[]rune(value)[0]}, line_num, current}
+			c_token = Token{Lit_char, value, CharVal{[]rune(value)[0]}, line_num, current}
 		default:
 			if unicode.IsSpace(char) {
 				continue
@@ -459,19 +459,19 @@ func Lexer(line string, line_num int) ([]Token, []error) {
 						err = append(err, &LexError{line_num, current, "Not a valid number. But it's my fault... " + value})
 						continue
 					}
-					c_token = Token{Lit_num, value, &IntVal{num}, line_num, current}
+					c_token = Token{Lit_num, value, IntVal{num}, line_num, current}
 				} else {
 					num, e := strconv.ParseFloat(value, 64)
 					if e != nil {
 						err = append(err, &LexError{line_num, current, "Not a valid number. But it's my fault... " + value})
 						continue
 					}
-					c_token = Token{Lit_num, value, &FloatVal{num}, line_num, current}
+					c_token = Token{Lit_num, value, FloatVal{num}, line_num, current}
 				}
 			} else if unicode.IsLetter(char) && char < 128 {
 				value, token_type := match_identifier(line, &current)
 				if token_type == Lit_true || token_type == Lit_false {
-					c_token = Token{token_type, value, &BoolVal{token_type == Lit_true}, line_num, current}
+					c_token = Token{token_type, value, BoolVal{token_type == Lit_true}, line_num, current}
 				} else {
 					c_token = Token{token_type, value, nil, line_num, current}
 				}

@@ -132,244 +132,243 @@ type ListVal struct {
 	Stored []Val
 }
 
-func (n *NullVal) Get() any {
+func (n NullVal) Get() any {
 	return nil
 }
-func (i *IntVal) Get() any {
+func (i IntVal) Get() any {
 	return i.Value
 }
-func (f *FloatVal) Get() any {
+func (f FloatVal) Get() any {
 	return f.Value
 }
-func (s *StrVal) Get() any {
+func (s StrVal) Get() any {
 	return s.Value
 }
-func (c *CharVal) Get() any {
+func (c CharVal) Get() any {
 	return c.Value
 }
-func (b *BoolVal) Get() any {
+func (b BoolVal) Get() any {
 	return b.Value
 }
-func (l *ListVal) Get() any {
+func (l ListVal) Get() any {
 	return l.Stored
 }
-func (n *NullVal) Name() string {
+func (n NullVal) Name() string {
 	return "SEMMI"
 }
-func (i *IntVal) Name() string {
+func (i IntVal) Name() string {
 	return "NUM"
 }
-func (f *FloatVal) Name() string {
+func (f FloatVal) Name() string {
 	return "NUM"
 }
-func (s *StrVal) Name() string {
+func (s StrVal) Name() string {
 	return "TXT"
 }
-func (c *CharVal) Name() string {
+func (c CharVal) Name() string {
 	return "KAR"
 }
-func (b *BoolVal) Name() string {
+func (b BoolVal) Name() string {
 	return "LOG"
 }
-func (l *ListVal) Name() string {
+func (l ListVal) Name() string {
 	return "LIST"
 }
 
-func (i *BoolVal) And(other Logical) Logical {
-	return &BoolVal{i.Value && other.Get().(bool)}
+func (i BoolVal) And(other Logical) Logical {
+	return BoolVal{i.Value && other.Get().(bool)}
 }
-func (i *BoolVal) Or(other Logical) Logical {
-	return &BoolVal{i.Value || other.Get().(bool)}
+func (i BoolVal) Or(other Logical) Logical {
+	return BoolVal{i.Value || other.Get().(bool)}
 }
-func (i *BoolVal) Not() Logical {
-	return &BoolVal{!i.Value}
-}
-
-func (i *BoolVal) Equal(other Comparable) Logical {
-	inner, ok := other.(*BoolVal)
-	return &BoolVal{ok && i.Value == inner.Value}
-}
-func (i *StrVal) Equal(other Comparable) Logical {
-	inner, ok := other.(*StrVal)
-	return &BoolVal{ok && i.Value == inner.Value}
-}
-func (i *IntVal) Equal(other Comparable) Logical {
-	inner_i, isint := other.(*IntVal)
-	_, isfloat := other.(*FloatVal)
-	return &BoolVal{isint && !isfloat && i.Value == inner_i.Value}
-}
-func (i *FloatVal) Equal(other Comparable) Logical {
-	_, isint := other.(*IntVal)
-	inner_f, isfloat := other.(*FloatVal)
-	return &BoolVal{!isint && isfloat && i.Value == inner_f.Value}
-}
-func (i *CharVal) Equal(other Comparable) Logical {
-	inner, ok := other.(*CharVal)
-	return &BoolVal{ok && i.Value == inner.Value}
+func (i BoolVal) Not() Logical {
+	return BoolVal{!i.Value}
 }
 
-func (i *StrVal) Add(other Addable) (Addable, error) {
-	inner, ok := other.(*StrVal)
+func (i BoolVal) Equal(other Comparable) Logical {
+	inner, ok := other.(BoolVal)
+	return BoolVal{ok && i.Value == inner.Value}
+}
+func (i StrVal) Equal(other Comparable) Logical {
+	inner, ok := other.(StrVal)
+	return BoolVal{ok && i.Value == inner.Value}
+}
+func (i IntVal) Equal(other Comparable) Logical {
+	inner_i, isint := other.(IntVal)
+	_, isfloat := other.(FloatVal)
+	return BoolVal{isint && !isfloat && i.Value == inner_i.Value}
+}
+func (i FloatVal) Equal(other Comparable) Logical {
+	_, isint := other.(IntVal)
+	inner_f, isfloat := other.(FloatVal)
+	return BoolVal{!isint && isfloat && i.Value == inner_f.Value}
+}
+func (i CharVal) Equal(other Comparable) Logical {
+	inner, ok := other.(CharVal)
+	return BoolVal{ok && i.Value == inner.Value}
+}
+
+func (i StrVal) Add(other Addable) (Addable, error) {
+	inner, ok := other.(StrVal)
 	if !ok {
 		return nil, fmt.Errorf("Not a string")
 	}
-	return &StrVal{fmt.Sprint(i.Value, inner.Value)}, nil
+	return StrVal{fmt.Sprint(i.Value, inner.Value)}, nil
 }
-func (i *IntVal) Add(other Addable) (Addable, error) {
-	inner_i, isint := other.(*IntVal)
-	inner_f, isfloat := other.(*FloatVal)
+func (i IntVal) Add(other Addable) (Addable, error) {
+	inner_i, isint := other.(IntVal)
+	inner_f, isfloat := other.(FloatVal)
 	if !isint && !isfloat {
 		return nil, fmt.Errorf("Not a number")
 	}
 	if isint {
-		return &IntVal{i.Value + inner_i.Value}, nil
+		return IntVal{i.Value + inner_i.Value}, nil
 	}
-	return &FloatVal{float64(i.Value) + inner_f.Value}, nil
+	return FloatVal{float64(i.Value) + inner_f.Value}, nil
 }
-func (i *FloatVal) Add(other Addable) (Addable, error) {
-	inner_i, isint := other.(*IntVal)
-	inner_f, isfloat := other.(*FloatVal)
-	if !isint && !isfloat {
-		return nil, fmt.Errorf("Not a number")
-	}
-	if isfloat {
-		return &FloatVal{i.Value + inner_f.Value}, nil
-	}
-	return &FloatVal{i.Value + float64(inner_i.Value)}, nil
-}
-
-func (i *IntVal) Greater(other Ordered) (Logical, error) {
-	inner_i, isint := other.(*IntVal)
-	inner_f, isfloat := other.(*FloatVal)
-	if !isint && !isfloat {
-		return nil, fmt.Errorf("Not a number")
-	}
-	if isint {
-		return &BoolVal{i.Value > inner_i.Value}, nil
-	}
-	return &BoolVal{float64(i.Value) > inner_f.Value}, nil
-}
-func (i *FloatVal) Greater(other Ordered) (Logical, error) {
-	inner_i, isint := other.(*IntVal)
-	inner_f, isfloat := other.(*FloatVal)
+func (i FloatVal) Add(other Addable) (Addable, error) {
+	inner_i, isint := other.(IntVal)
+	inner_f, isfloat := other.(FloatVal)
 	if !isint && !isfloat {
 		return nil, fmt.Errorf("Not a number")
 	}
 	if isfloat {
-		return &BoolVal{i.Value > inner_f.Value}, nil
+		return FloatVal{i.Value + inner_f.Value}, nil
 	}
-	return &BoolVal{i.Value > float64(inner_i.Value)}, nil
+	return FloatVal{i.Value + float64(inner_i.Value)}, nil
 }
 
-func (i *IntVal) Invert() (Numeric, error) {
-	return &IntVal{-i.Value}, nil
+func (i IntVal) Greater(other Ordered) (Logical, error) {
+	inner_i, isint := other.(IntVal)
+	inner_f, isfloat := other.(FloatVal)
+	if !isint && !isfloat {
+		return nil, fmt.Errorf("Not a number")
+	}
+	if isint {
+		return BoolVal{i.Value > inner_i.Value}, nil
+	}
+	return BoolVal{float64(i.Value) > inner_f.Value}, nil
 }
-func (i *IntVal) Subtract(other Numeric) (Numeric, error) {
-	inner_i, isint := other.(*IntVal)
-	inner_f, isfloat := other.(*FloatVal)
+func (i FloatVal) Greater(other Ordered) (Logical, error) {
+	inner_i, isint := other.(IntVal)
+	inner_f, isfloat := other.(FloatVal)
+	if !isint && !isfloat {
+		return nil, fmt.Errorf("Not a number")
+	}
+	if isfloat {
+		return BoolVal{i.Value > inner_f.Value}, nil
+	}
+	return BoolVal{i.Value > float64(inner_i.Value)}, nil
+}
+
+func (i IntVal) Invert() (Numeric, error) {
+	return IntVal{-i.Value}, nil
+}
+func (i IntVal) Subtract(other Numeric) (Numeric, error) {
+	inner_i, isint := other.(IntVal)
+	inner_f, isfloat := other.(FloatVal)
 	if !isint && !isfloat {
 		panic("Unreachable!")
 	}
 	if isint {
-		return &IntVal{i.Value - inner_i.Value}, nil
+		return IntVal{i.Value - inner_i.Value}, nil
 	}
-	return &FloatVal{float64(i.Value) - inner_f.Value}, nil
+	return FloatVal{float64(i.Value) - inner_f.Value}, nil
 }
-func (i *IntVal) Multiply(other Numeric) (Numeric, error) {
-	inner_i, isint := other.(*IntVal)
-	inner_f, isfloat := other.(*FloatVal)
+func (i IntVal) Multiply(other Numeric) (Numeric, error) {
+	inner_i, isint := other.(IntVal)
+	inner_f, isfloat := other.(FloatVal)
 	if !isint && !isfloat {
 		panic("Unreachable!")
 	}
 	if isint {
-		return &IntVal{i.Value * inner_i.Value}, nil
+		return IntVal{i.Value * inner_i.Value}, nil
 	}
-	return &FloatVal{float64(i.Value) * inner_f.Value}, nil
+	return FloatVal{float64(i.Value) * inner_f.Value}, nil
 }
-func (i *IntVal) Divide(other Numeric) (Numeric, error) {
-	inner_i, isint := other.(*IntVal)
-	inner_f, isfloat := other.(*FloatVal)
+func (i IntVal) Divide(other Numeric) (Numeric, error) {
+	inner_i, isint := other.(IntVal)
+	inner_f, isfloat := other.(FloatVal)
 	if !isint && !isfloat {
 		panic("Unreachable!")
 	}
 	if isint {
-		return &IntVal{i.Value / inner_i.Value}, nil
+		return IntVal{i.Value / inner_i.Value}, nil
 	}
-	return &FloatVal{float64(i.Value) / inner_f.Value}, nil
+	return FloatVal{float64(i.Value) / inner_f.Value}, nil
 }
-func (i *IntVal) IntDiv(other Numeric) (Numeric, error) {
-	inner_i, isint := other.(*IntVal)
-	inner_f, isfloat := other.(*FloatVal)
+func (i IntVal) IntDiv(other Numeric) (Numeric, error) {
+	inner_i, isint := other.(IntVal)
+	inner_f, isfloat := other.(FloatVal)
 	if !isint && !isfloat {
 		panic("Unreachable!")
 	}
 	if isint {
-		return &IntVal{i.Value / inner_i.Value}, nil
+		return IntVal{i.Value / inner_i.Value}, nil
 	}
-	i.Value = int(float64(i.Value) / inner_f.Value)
-	return i, nil
+	return IntVal{int(float64(i.Value) / inner_f.Value)}, nil
 }
-func (i *IntVal) Modulo(other Numeric) (Numeric, error) {
-	inner_i, isint := other.(*IntVal)
-	_, isfloat := other.(*FloatVal)
+func (i IntVal) Modulo(other Numeric) (Numeric, error) {
+	inner_i, isint := other.(IntVal)
+	_, isfloat := other.(FloatVal)
 	if !isint && !isfloat {
 		panic("Unreachable!")
 	}
 	if isint {
-		return &IntVal{i.Value % inner_i.Value}, nil
+		return IntVal{i.Value % inner_i.Value}, nil
 	}
 	return nil, fmt.Errorf("Right hand value must be integer")
 }
-func (i *FloatVal) Invert() (Numeric, error) {
-	return &FloatVal{-i.Value}, nil
+func (i FloatVal) Invert() (Numeric, error) {
+	return FloatVal{-i.Value}, nil
 }
-func (i *FloatVal) Subtract(other Numeric) (Numeric, error) {
-	inner_i, isint := other.(*IntVal)
-	inner_f, isfloat := other.(*FloatVal)
+func (i FloatVal) Subtract(other Numeric) (Numeric, error) {
+	inner_i, isint := other.(IntVal)
+	inner_f, isfloat := other.(FloatVal)
 	if !isint && !isfloat {
 		panic("Unreachable!")
 	}
 	if isfloat {
-		return &FloatVal{i.Value - inner_f.Value}, nil
+		return FloatVal{i.Value - inner_f.Value}, nil
 	}
-	return &FloatVal{i.Value - float64(inner_i.Value)}, nil
+	return FloatVal{i.Value - float64(inner_i.Value)}, nil
 }
-func (i *FloatVal) Multiply(other Numeric) (Numeric, error) {
-	inner_i, isint := other.(*IntVal)
-	inner_f, isfloat := other.(*FloatVal)
+func (i FloatVal) Multiply(other Numeric) (Numeric, error) {
+	inner_i, isint := other.(IntVal)
+	inner_f, isfloat := other.(FloatVal)
 	if !isint && !isfloat {
 		panic("Unreachable!")
 	}
 	if isfloat {
-		return &FloatVal{i.Value * inner_f.Value}, nil
+		return FloatVal{i.Value * inner_f.Value}, nil
 	}
-	return &FloatVal{i.Value * float64(inner_i.Value)}, nil
+	return FloatVal{i.Value * float64(inner_i.Value)}, nil
 }
-func (i *FloatVal) Divide(other Numeric) (Numeric, error) {
-	inner_i, isint := other.(*IntVal)
-	inner_f, isfloat := other.(*FloatVal)
+func (i FloatVal) Divide(other Numeric) (Numeric, error) {
+	inner_i, isint := other.(IntVal)
+	inner_f, isfloat := other.(FloatVal)
 	if !isint && !isfloat {
 		panic("Unreachable!")
 	}
 	if isfloat {
-		return &FloatVal{i.Value / inner_f.Value}, nil
+		return FloatVal{i.Value / inner_f.Value}, nil
 	}
-	return &FloatVal{i.Value / float64(inner_i.Value)}, nil
+	return FloatVal{i.Value / float64(inner_i.Value)}, nil
 }
-func (i *FloatVal) IntDiv(other Numeric) (Numeric, error) {
-	inner_i, isint := other.(*IntVal)
-	inner_f, isfloat := other.(*FloatVal)
+func (i FloatVal) IntDiv(other Numeric) (Numeric, error) {
+	inner_i, isint := other.(IntVal)
+	inner_f, isfloat := other.(FloatVal)
 	if !isint && !isfloat {
 		panic("Unreachable!")
 	}
 	if isfloat {
-		return &IntVal{int(i.Value / inner_f.Value)}, nil
+		return IntVal{int(i.Value / inner_f.Value)}, nil
 	}
-	return &FloatVal{i.Value - float64(inner_i.Value)}, nil
+	return FloatVal{i.Value - float64(inner_i.Value)}, nil
 }
-func (i *FloatVal) Modulo(other Numeric) (Numeric, error) {
-	inner_i, isint := other.(*IntVal)
-	_, isfloat := other.(*FloatVal)
+func (i FloatVal) Modulo(other Numeric) (Numeric, error) {
+	inner_i, isint := other.(IntVal)
+	_, isfloat := other.(FloatVal)
 	if !isint && !isfloat {
 		panic("Unreachable!")
 	}
@@ -378,21 +377,21 @@ func (i *FloatVal) Modulo(other Numeric) (Numeric, error) {
 	}
 	whole := int(i.Value) % inner_i.Value
 	frac := i.Value - float64(inner_i.Value)
-	return &FloatVal{float64(whole) + frac}, nil
+	return FloatVal{float64(whole) + frac}, nil
 }
 
-func (i *ListVal) Index(idx IntVal) (Val, error) {
+func (i ListVal) Index(idx IntVal) (Val, error) {
 	return i.Stored[idx.Value], nil // bounds check here?
 }
-func (i *StrVal) Index(idx IntVal) (Val, error) {
-	return &CharVal{[]rune(i.Value)[idx.Value]}, nil // bounds check here?
+func (i StrVal) Index(idx IntVal) (Val, error) {
+	return CharVal{[]rune(i.Value)[idx.Value]}, nil // bounds check here?
 }
 
 func binCompat[T Val](a, b Val, oper string) (T, T, error) {
 	ia, aok := a.(T)
 	ib, bok := b.(T)
 	if !aok || !bok {
-		fmt.Println(a, b)
+		// fmt.Println(a, b)
 		return ia, ib, fmt.Errorf("\"%s\" binary operation not defined between %s and %s", oper, a.Name(), b.Name())
 	}
 	return ia, ib, nil
@@ -533,9 +532,9 @@ func OpIndex(a, b Val) (Val, error) {
 	if !ok {
 		return nil, fmt.Errorf("not indexable")
 	}
-	ib, ok := b.(*IntVal)
+	ib, ok := b.(IntVal)
 	if !ok {
 		return nil, fmt.Errorf("not an integer")
 	}
-	return ia.Index(*ib)
+	return ia.Index(ib)
 }
