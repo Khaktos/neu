@@ -64,7 +64,11 @@ func (e *Env) Get(id string, line, pos int) (Val, error) {
 func (e *Env) Get_type(id string, line, pos int) (ValueType, error) {
 	c_typ, ok := e.Types[id]
 	if !ok {
-		return ValueType{}, &RunError{line, pos, "Variable is undeclared"}
+		if e.Parent != nil {
+			return e.Parent.Get_type(id, line, pos)
+		} else {
+			return ValueType{}, &RunError{line, pos, "Variable is undeclared"}
+		}
 	}
 	return c_typ, nil
 }
@@ -122,12 +126,6 @@ func eval_binary(lval, rval Val, oper Token) (Val, error) {
 		return OpModulo(lval, rval, oper.Lexeme)
 	case L_brace:
 		return OpIndex(lval, rval)
-		// panic("INDEXING")
-		// if rtype == "nul" {
-		// 	return nil, &RunError{oper.Line, oper.Start, "Index cannot be SEMMI"}
-		// }
-		// fmt.Println(lval)
-		// return nil, &RunError{oper.Line, oper.Start, "INDEXING"}
 	default:
 		panic("Error in binary evaluation!")
 	}
@@ -335,9 +333,10 @@ func (cmd *Command) Interpret(env *Env) error {
 					if err != nil {
 						return err
 					}
-					list, ok := vlist.(ListVal)
-					if !ok {
-						panic("Something went wrong in list element assignment")
+					vtype, _ := env.Get_type(cmd.Def.Id, cmd.Head.Oper.Line, cmd.Head.Oper.Start)
+					list, _ := vlist.(ListVal)
+					if !isSameType(etype, vtype.SubType[0]) {
+						return &RunError{cmd.Head.Oper.Line, cmd.Head.Oper.Start, fmt.Sprintf("Assigning %s to an element of %s", val.Name(), vtype.Name())}
 					}
 					list.Stored[idx] = val
 				}

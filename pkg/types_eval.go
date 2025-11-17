@@ -38,6 +38,24 @@ func (v ValueType) String() string {
 		return fmt.Sprintf("%d", v.BaseType)
 	}
 }
+func (v ValueType) Name() string {
+	switch v.BaseType {
+	case Nul_type:
+		return "SEMMI"
+	case Num_type:
+		return "NUM"
+	case Str_type:
+		return "TXT"
+	case Bool_type:
+		return "LOG"
+	case Char_type:
+		return "KAR"
+	case List_type:
+		return "LIST[" + v.SubType[0].Name() + "]"
+	default:
+		return fmt.Sprintf("%d", v.BaseType)
+	}
+}
 
 // Base types
 var BaseNum = ValueType{Num_type, nil}
@@ -238,6 +256,14 @@ func (i FloatVal) Add(other Addable) (Addable, error) {
 	return FloatVal{i.Value + float64(inner_i.Value)}, nil
 }
 
+func (i CharVal) Greater(other Ordered) (Logical, error) {
+	inner, ok := other.(CharVal)
+	if !ok {
+		return nil, fmt.Errorf("Not a character")
+	}
+	return BoolVal{i.Value > inner.Value}, nil
+}
+
 func (i IntVal) Greater(other Ordered) (Logical, error) {
 	inner_i, isint := other.(IntVal)
 	inner_f, isfloat := other.(FloatVal)
@@ -381,17 +407,28 @@ func (i FloatVal) Modulo(other Numeric) (Numeric, error) {
 }
 
 func (i ListVal) Index(idx IntVal) (Val, error) {
-	return i.Stored[idx.Value], nil // bounds check here?
+	if idx.Value >= len(i.Stored) {
+		return nil, fmt.Errorf("Index %d too large for list with length %d", idx.Value, len(i.Stored))
+	}
+	if idx.Value < 0 {
+		return nil, fmt.Errorf("Index %d must not be negative", idx.Value)
+	}
+	return i.Stored[idx.Value], nil
 }
 func (i StrVal) Index(idx IntVal) (Val, error) {
-	return CharVal{[]rune(i.Value)[idx.Value]}, nil // bounds check here?
+	if idx.Value >= len(i.Value) {
+		return nil, fmt.Errorf("Index %d too large for string with length %d", idx.Value, len(i.Value))
+	}
+	if idx.Value < 0 {
+		return nil, fmt.Errorf("Index %d must not be negative", idx.Value)
+	}
+	return CharVal{[]rune(i.Value)[idx.Value]}, nil
 }
 
 func binCompat[T Val](a, b Val, oper string) (T, T, error) {
 	ia, aok := a.(T)
 	ib, bok := b.(T)
 	if !aok || !bok {
-		// fmt.Println(a, b)
 		return ia, ib, fmt.Errorf("\"%s\" binary operation not defined between %s and %s", oper, a.Name(), b.Name())
 	}
 	return ia, ib, nil
@@ -530,11 +567,11 @@ func OpModulo(a, b Val, name string) (Numeric, error) {
 func OpIndex(a, b Val) (Val, error) {
 	ia, ok := a.(Indexable)
 	if !ok {
-		return nil, fmt.Errorf("not indexable")
+		return nil, fmt.Errorf("\"%s\" is not indexable", a.Name())
 	}
 	ib, ok := b.(IntVal)
 	if !ok {
-		return nil, fmt.Errorf("not an integer")
+		return nil, fmt.Errorf("\"%s\" can not be used as an index", b.Name())
 	}
 	return ia.Index(ib)
 }
