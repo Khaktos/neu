@@ -83,7 +83,8 @@ func (e *ParseError) Error() string {
 
 func expect_nl(tokens []Token, current *int) error {
 	if !(match_token(tokens, current, Nl)) {
-		re := &ParseError{tokens[*current].Line, tokens[*current].Start, "New line expected"}
+		temp := fmt.Sprintf("New line expected but got: %s", tokens[*current].Lexeme)
+		re := &ParseError{tokens[*current].Line, tokens[*current].Start, temp}
 		sync_to_next_cmd(tokens, current)
 		return re
 	}
@@ -136,27 +137,38 @@ func find_last(tokens []Token, typ TokenType) int {
 }
 
 // TODO: add support for multi dimension arrays
-func parse_indexing(tokens []Token, current *int) (*TreeNode, error) {
-	ident := tokens[*current-1]
-	ret := &TreeNode{Oper: ident}
+func parse_indexing(tokens []Token, current *int, subtree *TreeNode) (*TreeNode, error) {
+	if subtree == nil {
+		ident := tokens[*current-1]
+		subtree = &TreeNode{Oper: ident}
+	}
 	if match_token(tokens, current, L_brace) {
 		brace := tokens[*current-1]
-		expr, err := parse_expression(tokens, current)
+		expr1, err := parse_expression(tokens, current)
 		if err != nil {
 			return nil, err
 		}
 		if match_token(tokens, current, R_brace) {
-			return &TreeNode{Left: ret, Oper: brace, Right: expr}, nil
+			new_subtree := &TreeNode{Left: subtree, Oper: brace, Right: expr1}
+			if match_token(tokens, current, L_brace) {
+				*current--
+				other_idx, err := parse_indexing(tokens, current, new_subtree)
+				if err != nil {
+					return nil, err
+				}
+				return other_idx, nil
+			}
+			return new_subtree, nil
 		} else {
 			return nil, &ParseError{brace.Line, brace.Start, "Unclosed indexing"}
 		}
 	}
-	return ret, nil
+	return subtree, nil
 }
 
 func parse_primary(tokens []Token, current *int) (*TreeNode, error) {
 	if match_token(tokens, current, Identifier) {
-		indexed, err := parse_indexing(tokens, current)
+		indexed, err := parse_indexing(tokens, current, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -508,11 +520,10 @@ func parse_command(tokens []Token, current *int) (*Command, error) {
 	// 	return &Command{Assign_cmd, head, nil, id, Nul}, nil
 	// }
 	if match_token(tokens, current, Identifier) {
-		indexed, err := parse_indexing(tokens, current)
+		indexed, err := parse_indexing(tokens, current, nil)
 		if err != nil {
 			return nil, err
 		}
-		// fmt.Println(indexed)
 		if !match_token(tokens, current, Equal) {
 			panic("Unreachable?")
 		}
@@ -522,6 +533,7 @@ func parse_command(tokens []Token, current *int) (*Command, error) {
 		}
 		err = expect_nl(tokens, current)
 		if err != nil {
+			fmt.Println(head.print())
 			return nil, err
 		}
 		switch indexed.Oper.Token_type {

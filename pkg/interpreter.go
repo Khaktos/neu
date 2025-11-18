@@ -316,6 +316,8 @@ func (cmd *Command) Interpret(env *Env) error {
 				etype = BaseNum
 			case FloatVal:
 				etype = BaseNum
+			case ListVal:
+				panic("Support lists as values")
 			default:
 				etype = ValueType{}
 			}
